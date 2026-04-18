@@ -61,11 +61,11 @@ test('wizard: renders preset page, tab advances step indicator', skipOnWin, asyn
     });
     try {
         // Lands on step 1 / 5.
-        await app.waitFor(/configure · step 1 \/ 5/);
+        await app.waitFor(/configure · step 1 \/ 6/);
         await app.waitFor(/preset/);
         // Tab → step 2.
         await app.send(KEY.Tab);
-        await app.waitFor(/step 2 \/ 5/);
+        await app.waitFor(/step 2 \/ 6/);
         // Quit without saving.
         await app.send('q');
         const code = await app.waitExit();
@@ -83,7 +83,7 @@ test('wizard: left/right cycles preset enum + preview reflects change', skipOnWi
         LEAN_STATUSLINE_CONFIG: cfg,
     });
     try {
-        await app.waitFor(/step 1 \/ 5/);
+        await app.waitFor(/step 1 \/ 6/);
         // default preset is compact; → cycles to full (wraps through list).
         await app.send(KEY.Right);
         // preview now contains the `context` line that only full renders.
