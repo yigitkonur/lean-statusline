@@ -26,7 +26,14 @@ const BIN = __filename;
 const [, , cmd, ...rest] = process.argv;
 
 async function main() {
-    if (!cmd) return renderFromStdin();
+    if (!cmd) {
+        // No subcommand. If stdin is a tty we know we're NOT being piped
+        // JSON by Claude Code — show an interactive menu instead of blocking
+        // on stdin forever. Common case: someone types `npx lean-statusline`
+        // to explore what the command does.
+        if (process.stdin.isTTY) return interactiveMenu();
+        return renderFromStdin();
+    }
     switch (cmd) {
         case 'install':   return cmdInstall(rest);
         case 'uninstall': return cmdUninstall(rest);
@@ -55,6 +62,51 @@ main().catch(err => {
     console.error(`error: ${err?.message || err}`);
     process.exit(1);
 });
+
+// ── interactive menu (shown when TTY + no subcommand) ──
+async function interactiveMenu() {
+    const BOLD = '\x1b[1m', DIM = '\x1b[2m', RESET = '\x1b[0m';
+    const CYAN = '\x1b[36m', GREEN = '\x1b[32m';
+
+    process.stdout.write(`${BOLD}lean-statusline${RESET} ${DIM}v${PKG.version}${RESET}\n`);
+    process.stdout.write(`${DIM}${'─'.repeat(60)}${RESET}\n`);
+    process.stdout.write(`claude code's statusline — configure and check.\n\n`);
+    process.stdout.write(`  ${BOLD}(1)${RESET} install      ${DIM}patch settings.json + smoke test${RESET}\n`);
+    process.stdout.write(`  ${BOLD}(2)${RESET} doctor       ${DIM}verify install health${RESET}\n`);
+    process.stdout.write(`  ${BOLD}(3)${RESET} config       ${DIM}p10k-style wizard (preset + fine-tune)${RESET}\n`);
+    process.stdout.write(`  ${BOLD}(4)${RESET} uninstall    ${DIM}remove statusLine entry${RESET}\n`);
+    process.stdout.write(`  ${BOLD}(h)${RESET} help         ${DIM}full command reference${RESET}\n`);
+    process.stdout.write(`  ${BOLD}(q)${RESET} quit\n\n`);
+    process.stdout.write(`${GREEN}›${RESET} press a key: `);
+
+    const key = await readSingleKey();
+    process.stdout.write('\n\n');
+    switch (key.toLowerCase()) {
+        case '1': return cmdInstall([]);
+        case '2': return cmdDoctor();
+        case '3': return cmdConfig([]);
+        case '4': return cmdUninstall([]);
+        case 'h': return printHelp();
+        case 'q':
+        default:  return;
+    }
+}
+
+function readSingleKey() {
+    return new Promise(resolve => {
+        const stdin = process.stdin;
+        const wasRaw = stdin.isRaw;
+        if (stdin.setRawMode) stdin.setRawMode(true);
+        stdin.resume();
+        stdin.setEncoding('utf8');
+        stdin.once('data', chunk => {
+            if (stdin.setRawMode) stdin.setRawMode(wasRaw || false);
+            stdin.pause();
+            if (chunk === '\x03') process.exit(130);  // Ctrl-C
+            resolve(chunk);
+        });
+    });
+}
 
 // ── render ──────────────────────────────────────────────
 async function renderFromStdin() {
