@@ -35,10 +35,12 @@ async function main() {
         return renderFromStdin();
     }
     switch (cmd) {
-        case 'install':   return cmdInstall(rest);
-        case 'uninstall': return cmdUninstall(rest);
-        case 'config':    return cmdConfig(rest);
-        case 'doctor':    return cmdDoctor();
+        case 'install':    return cmdInstall(rest);
+        case 'uninstall':  return cmdUninstall(rest);
+        case 'config':     return cmdConfig(rest);
+        case 'doctor':     return cmdDoctor();
+        case 'selfupdate':
+        case 'update':     return cmdSelfupdate(rest);
         case 'version':
         case '--version':
         case '-v':        console.log(PKG.version); return;
@@ -296,6 +298,48 @@ function applySet(cfg, key, val) {
     else cur[leaf] = val;
 }
 
+// ── selfupdate ──────────────────────────────────────────
+// Global installs are the only flavor that doesn't auto-update. npx-patched
+// configs re-resolve @latest on each render. Clone installs update via git
+// pull. Global installs stay frozen at whatever version was `npm install -g`d.
+async function cmdSelfupdate(args) {
+    const flags = parseFlags(args, { '--version': null, '--check': false });
+    const target = flags['--version'] || 'latest';
+
+    const { spawnSync } = await import('node:child_process');
+    console.log('checking registry for latest version...');
+    const viewResult = spawnSync('npm', ['view', `lean-statusline@${target}`, 'version'], { encoding: 'utf8' });
+    if (viewResult.status !== 0) {
+        console.error('could not reach npm registry.');
+        console.error(viewResult.stderr || 'no stderr');
+        process.exit(1);
+    }
+    const registryVersion = viewResult.stdout.trim();
+    console.log(`current: ${PKG.version}  ·  registry: ${registryVersion}`);
+    if (registryVersion === PKG.version) {
+        console.log('already on the latest version.');
+        return;
+    }
+    if (flags['--check']) {
+        console.log(`update available: ${PKG.version} → ${registryVersion}`);
+        console.log(`run  \`lean-statusline selfupdate\`  to apply.`);
+        return;
+    }
+
+    console.log(`upgrading ${PKG.version} → ${registryVersion}...`);
+    const install = spawnSync('npm', ['install', '-g', `lean-statusline@${target}`], {
+        encoding: 'utf8', stdio: 'inherit',
+    });
+    if (install.status !== 0) {
+        console.error('npm install -g failed.');
+        console.error('  on macOS with homebrew-managed node, the global prefix is writable without sudo.');
+        console.error('  if you see EACCES, either re-run with sudo or follow the npm docs on fixing permissions:');
+        console.error('    https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally');
+        process.exit(install.status ?? 1);
+    }
+    console.log(`done. next statusline render picks up ${registryVersion}.`);
+}
+
 // ── doctor ──────────────────────────────────────────────
 async function cmdDoctor() {
     const { report, fails } = await runDoctor(BIN);
@@ -335,6 +379,8 @@ usage:
   lean-statusline config --edit                open config in \$EDITOR
   lean-statusline config --reset               reset to defaults
   lean-statusline doctor                       verify install health
+  lean-statusline selfupdate [--check] [--version X]
+                                               upgrade the global install via npm
   lean-statusline version
 
 presets:
