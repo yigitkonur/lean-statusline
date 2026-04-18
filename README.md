@@ -1,178 +1,219 @@
 # lean-statusline
 
-A one-line statusline for [Claude Code](https://claude.com/claude-code). Everything you actually read while coding, nothing you don't.
+one-line statusline for [claude code](https://claude.com/claude-code). the stuff you actually glance at, nothing you don't.
 
 ```
-Opus 4.7 (1M context) · ✎ 2% · mcp-researchpowerpack-http (main) · 5h 40% · 7d 47%
+Opus 4.7 (1M context) · ✎ 2% · mcp-researchpowerpack-http (main*) · 5h 40% · 7d 47%
 ```
 
-Model • context usage • directory (git branch + dirty marker) • 5-hour + 7-day rate-limit usage. That's it.
+model · context % · dir (branch, `*` if dirty) · 5-hour + 7-day rate-limit usage. done.
 
-## Why
+node-only, zero deps, works on mac/linux/windows. no bash, no jq, no vendored binaries.
 
-The default-ish 3-line statusline (model line, rate-limit bars, and a 88-character context bar) looks like this:
+## why bother
 
-![Before: the busy 3-line statusline](assets/current-statusline.png)
+the stock-ish 3-line statusline eats four rows above every prompt:
 
-That's four rows of chrome above every prompt. On a 40-row terminal that's 10% of the screen, most of it re-rendering every keystroke.
+![before: the busy 3-line statusline](assets/current-statusline.png)
 
-**lean-statusline** collapses it to one line with the same information density for the parts you actually glance at: rate-limit percentages and context usage. Bars are dropped (numbers are the signal). The big context bar is dropped (the percentage already tells you). Session timer and effort indicator are opt-in.
+on a 40-row terminal that's 10% of your screen re-rendering every time claude emits something. lean-statusline collapses the same info to one line: numbers over bars, percentages over 88-char strips. session timer and effort indicator are opt-in, not default.
 
-## Install
+## install
 
-### macOS / Linux / WSL / Git Bash
+### one-liner (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/yigitkonur/lean-statusline/main/install/install.sh | bash
+npm install -g lean-statusline
+lean-statusline install
 ```
 
-### Windows (native PowerShell)
+that's it. `install` backs up `~/.claude/settings.json`, wires the `statusLine` command, runs a smoke test, and tells you what it changed. restart claude code.
+
+### no global install
+
+```bash
+npx lean-statusline install
+```
+
+same thing, without the global bin. the patched command in `settings.json` falls back to an explicit `node "/path/to/bin"` so it keeps working.
+
+### from source
+
+```bash
+git clone https://github.com/yigitkonur/lean-statusline.git
+cd lean-statusline
+npm link          # or: node bin/lean-statusline.mjs install
+```
+
+### windows
+
+works natively — no bash, no git bash, no wsl. just node 20+ on PATH.
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/yigitkonur/lean-statusline/main/install/install.ps1 | iex
+npm install -g lean-statusline
+lean-statusline install
 ```
 
-Requires Git for Windows or WSL so Claude Code can invoke `bash`. Both installers are idempotent, back up `settings.json` with a timestamped suffix, and run a smoke test at the end. Restart Claude Code to see the new line.
+## what's on the line
 
-### From a clone
+| piece           | where it comes from                                                                |
+|-----------------|------------------------------------------------------------------------------------|
+| `Opus 4.7`      | `model.display_name` from claude code's stdin payload                              |
+| `✎ 2%`          | `(input + cache_create + cache_read) / context_window_size`                        |
+| `<dir>`         | basename of `cwd`                                                                   |
+| `(main)`        | `git symbolic-ref --short HEAD` in `cwd`                                           |
+| `(main*)`       | `*` = dirty working tree (via `status --porcelain`)                                |
+| `5h 40%`        | anthropic usage endpoint, 5-hour bucket. stdin preferred, api fallback, 60s cache  |
+| `7d 47%`        | same, 7-day bucket                                                                 |
+| `⚡` (red)      | shown when claude code launched with `--dangerously-skip-permissions`              |
+| `◐ auto` (opt)  | effort level from `$CLAUDE_CODE_EFFORT_LEVEL` (or `settings.json#env`)             |
+
+percentages are color-graded: green under 50, orange 50–70, yellow 70–90, red 90+. thresholds are configurable.
+
+## configure
+
+config lives at `~/.claude/lean-statusline.json`. four ways to edit it:
 
 ```bash
-git clone git@github.com:yigitkonur/lean-statusline.git
-cd lean-statusline
-./install/install.sh          # or install\install.ps1 on Windows
+lean-statusline config                  # interactive wizard
+lean-statusline config --show           # print current (or defaults if no file)
+lean-statusline config --edit           # open in $EDITOR
+lean-statusline config --set show.bars=true separator=• icons=unicode
+lean-statusline config --reset
 ```
 
-### Flags
+full schema with defaults:
 
-| Flag                         | Meaning                                          |
-|------------------------------|--------------------------------------------------|
-| `--dir <path>` / `-Dir`      | Install to a directory other than `~/.claude`    |
-| `--no-patch` / `-NoPatch`    | Don't touch `settings.json`                      |
-| `--force` / `-Force`         | Overwrite an existing `lean-statusline.sh`       |
-| `--uninstall` / `-Uninstall` | Remove the script and the `statusLine` entry    |
+```json
+{
+  "segments": ["model", "ctx", "dir", "5h", "7d"],
+  "show": {
+    "branch": true,
+    "dirty": true,
+    "zap": true,
+    "bars": false
+  },
+  "icons": "auto",
+  "colors": true,
+  "separator": "·",
+  "thresholds": { "warn": 50, "high": 70, "crit": 90 }
+}
+```
 
-## What you get
+**segments** — any subset of `model`, `ctx`, `dir`, `5h`, `7d`, `session`, `effort`. order matters.
+**show.bars** — render `●●●●○○○○○○` strips next to each percentage. off by default because the number is the signal.
+**icons** — `auto` (unicode on modern terminals, ascii elsewhere), `unicode` (force), or `ascii` (force).
+**thresholds** — where the color gradient kicks in.
 
-| Segment      | Source                                                              |
-|--------------|---------------------------------------------------------------------|
-| `Opus 4.7`   | `model.display_name` from Claude Code's stdin payload               |
-| `✎ 2%`       | `(input + cache_create + cache_read) / context_window_size`         |
-| `<dir>`      | `basename $cwd`                                                     |
-| `(main)`     | `git symbolic-ref --short HEAD` on `$cwd`                           |
-| `(main*)`    | `*` = dirty working tree (unstaged/untracked via `--porcelain`)     |
-| `5h XX%`     | Anthropic usage endpoint, 5-hour bucket. Stdin preferred, API fallback, 60-second cache |
-| `7d XX%`     | Same, 7-day bucket                                                  |
-| `⚡` (red)   | Shown when the Claude Code process has `--dangerously-skip-permissions` |
+### env overrides
 
-Percentages are color-graded: green <50%, orange 50–70, yellow 70–90, red 90+.
+for one-session tweaks, env vars beat the config file:
 
-## Configuration
+| var                               | effect                                   |
+|-----------------------------------|------------------------------------------|
+| `LEAN_STATUSLINE_SEGMENTS`        | comma list, e.g. `model,ctx,dir`         |
+| `LEAN_STATUSLINE_ICONS`           | `auto` / `unicode` / `ascii`             |
+| `LEAN_STATUSLINE_SEPARATOR`       | any string, e.g. `|`                     |
+| `LEAN_STATUSLINE_SHOW_BARS=1`     | turn on the `●●●○○○` bars                |
+| `LEAN_STATUSLINE_SHOW_SESSION=1`  | add session-elapsed segment              |
+| `LEAN_STATUSLINE_SHOW_EFFORT=1`   | add effort-level segment                 |
+| `LEAN_STATUSLINE_NO_COLOR=1`      | kill colors (`NO_COLOR` also respected)  |
 
-Opt-in extras via environment variable:
-
-| Variable                           | Effect                                                  |
-|------------------------------------|---------------------------------------------------------|
-| `LEAN_STATUSLINE_SHOW_SESSION=1`   | Append session elapsed time (`⏱ 1h23m`)                |
-| `LEAN_STATUSLINE_SHOW_EFFORT=1`    | Append effort indicator from `settings.json`            |
-| `LEAN_STATUSLINE_ASCII=1`          | Force ASCII icons regardless of terminal detection      |
-| `LEAN_STATUSLINE_NO_COLOR=1`       | Disable colors (`NO_COLOR` is also honored)             |
-
-Set them in the `env` block of `~/.claude/settings.json`:
+set them in claude code's `settings.json` under `env`:
 
 ```json
 {
   "env": { "LEAN_STATUSLINE_SHOW_SESSION": "1" },
-  "statusLine": {
-    "type": "command",
-    "command": "bash \"/Users/you/.claude/lean-statusline.sh\""
-  }
+  "statusLine": { "type": "command", "command": "lean-statusline" }
 }
 ```
 
-## Icon rendering & fallbacks
+## icon rendering — what breaks, how to fix
 
-Two glyphs are unicode (`✎` for context, `⏱` for session elapsed, `⚡` for dangerous-perms). Most modern terminals render them cleanly; a few render them as tofu boxes or swallow the column width.
+three unicode glyphs by default: `✎` (context), `⏱` (session), `⚡` (dangerous-perms). most modern terminals render them fine. the ones that don't get auto-downgraded.
 
-The script auto-detects and falls back to ASCII (`%`, `t`, `!`) in two cases:
+**auto-detect fallback rules** (`icons: "auto"`):
 
-1. **SSH sessions** — `$SSH_TTY` or `$SSH_CONNECTION` is set. Remote terminals often lack the font.
-2. **Unknown terminal** — `$TERM_PROGRAM` is not one of: `ghostty`, `iTerm.app`, `WezTerm`, `WarpTerminal`, `vscode`, `Apple_Terminal`, `Hyper`, `Tabby`, `rio`.
+1. `$SSH_TTY` or `$SSH_CONNECTION` set → ascii. remote terminals often lack the font.
+2. `$TERM_PROGRAM` not in the allowlist → ascii. allowlist: `ghostty`, `iTerm.app`, `WezTerm`, `WarpTerminal`, `vscode`, `Apple_Terminal`, `Hyper`, `Tabby`, `rio`, `kitty`, `alacritty`.
 
-If your terminal *does* render unicode but isn't on the allowlist, add it to `TERM_PROGRAM` detection in `lean-statusline.sh` or just ignore this and set `LEAN_STATUSLINE_ASCII=1` in the other direction if the glyphs look bad.
+if your terminal renders unicode but isn't in the allowlist, either set `icons: "unicode"` in the config, or `LEAN_STATUSLINE_ICONS=unicode`.
 
-**Common culprits for broken glyphs**
+**common glyph failures:**
 
-| Symptom                                 | Cause                              | Fix                                                                     |
-|-----------------------------------------|------------------------------------|-------------------------------------------------------------------------|
-| `✎` shows as `□` / `?`                  | Font lacks U+270E                  | Use a Nerd Font or a font with good Misc Symbols coverage               |
-| Glyph visible but column width off      | Terminal misreports East-Asian width | Set `LEAN_STATUSLINE_ASCII=1`                                           |
-| Glyph appears as literal `\033[...m✎`    | Terminal doesn't interpret ANSI    | You're in a piped/non-TTY context — expected                             |
-| Colors missing entirely                 | `NO_COLOR` set, or dumb terminal   | Unset `NO_COLOR`, or run in a real TTY                                   |
+| symptom                                 | cause                                 | fix                                                     |
+|-----------------------------------------|---------------------------------------|---------------------------------------------------------|
+| `✎` shows as `□` / `?`                  | font lacks U+270E                     | install a nerd font, or set `icons: "ascii"`            |
+| glyph renders but column width is off   | terminal misreports east-asian width  | `icons: "ascii"`                                        |
+| colors missing                          | `NO_COLOR` set, or dumb terminal      | unset it; or `colors: false` is intentional             |
 
-The narrowest possible ASCII variant is guaranteed to work everywhere a POSIX shell runs — Git Bash on Windows included.
-
-## Dependencies
-
-- **bash** 3.2+ (macOS default bash works)
-- **jq** — JSON parsing
-- **curl** — only for the rate-limit fallback path when Claude Code doesn't ship limits on stdin
-- **git** — optional, used only when inside a work tree
-
-Install hints:
-
-```
-macOS:         brew install jq
-Debian/Ubuntu: sudo apt install jq
-Fedora:        sudo dnf install jq
-Arch:          sudo pacman -S jq
-Windows:       scoop install jq   # or   winget install jqlang.jq
-```
-
-## Troubleshooting
-
-### "Statusline command failed" / nothing shows
-
-Run it by hand:
+## doctor
 
 ```bash
-echo '{}' | bash ~/.claude/lean-statusline.sh
+lean-statusline doctor
 ```
 
-Empty output is fine (the script prints `Claude` as a placeholder in that case). An error means a missing dependency or a bad shebang — usually CRLF line endings on Windows. The PS1 installer normalizes LF; if you edited the file in Notepad, run `dos2unix ~/.claude/lean-statusline.sh`.
+checks node version, settings wiring, config validity, OAuth resolvability, leftover bash or ccline installs, and runs a smoke render. green ticks mean ready, warnings are non-fatal, reds fail with reason.
 
-### Permission denied
+example output:
 
+```
+✓  node ≥ 20          running 25.9.0
+✓  claude home exists /Users/you/.claude
+✓  settings.json exists
+✓  settings.json#statusLine wired to lean-statusline   lean-statusline
+!  lean-statusline not on PATH                          using explicit node invocation (ok)
+✓  using built-in defaults                              no ~/.claude/lean-statusline.json — that's fine
+✓  OAuth token resolvable                               rate-limit fallback available
+✓  smoke test passed                                    Opus 4.7 · ✎ 0% · …
+
+all good
+```
+
+## troubleshooting
+
+### nothing shows / statusline blank
+run it by hand:
 ```bash
-chmod +x ~/.claude/lean-statusline.sh
+echo '{}' | lean-statusline
 ```
+empty payload prints the literal `Claude` as a placeholder. any error is either a missing node (install node ≥ 20) or a malformed config (`lean-statusline config --show` will print the warning).
 
-This is the single most common failure mode for hand-installed statuslines. Both installers do this for you.
-
-### Rate-limit percentages missing
-
-Claude Code only sends `.rate_limits` on stdin in newer builds. Older builds fall back to an API call using the OAuth token from (in order):
+### rate-limit percentages missing
+newer claude code builds send `.rate_limits` on stdin. older builds need the api fallback, which pulls a token from (in order):
 
 1. `$CLAUDE_CODE_OAUTH_TOKEN`
-2. macOS Keychain entry `Claude Code-credentials`
+2. macos keychain entry `Claude Code-credentials`
 3. `~/.claude/.credentials.json`
-4. `secret-tool` on Linux (gnome-keyring)
+4. `secret-tool` on linux (gnome-keyring)
 
-If none resolve, the 5h/7d segments are silently omitted. That's correct behavior — not an error.
+if none resolve, `5h` and `7d` are silently omitted. that's correct behavior, not a bug.
 
-### Colors look wrong
+### effort shows the wrong value / "default"
+reads `$CLAUDE_CODE_EFFORT_LEVEL` first (claude code exports settings.json#env to child processes), then falls back to `settings.json#env.CLAUDE_CODE_EFFORT_LEVEL`. if you had the old bash version, it read the wrong key. the node version fixes this.
 
-Your terminal theme is probably overriding the 24-bit colors the script emits. Set `LEAN_STATUSLINE_NO_COLOR=1` or pick a theme that respects true color.
+### colors look wrong
+your terminal theme is probably overriding 24-bit colors. `colors: false` in config turns them off entirely.
 
-## Uninstall
+### old bash statusline still present
+`lean-statusline doctor` warns about `~/.claude/statusline.sh`. remove it manually once you're happy.
+
+## uninstall
 
 ```bash
-./install/install.sh --uninstall
-# or, from the URL installer:
-curl -fsSL https://raw.githubusercontent.com/yigitkonur/lean-statusline/main/install/install.sh | bash -s -- --uninstall
+lean-statusline uninstall
+npm uninstall -g lean-statusline   # if globally installed
 ```
 
-Removes the script and the `statusLine` entry from `settings.json`. A timestamped backup of `settings.json` is left behind.
+`uninstall` removes the `statusLine` entry from settings.json and leaves a timestamped backup. the config file at `~/.claude/lean-statusline.json` stays (delete manually if you want).
 
-## License
+## why node-only, zero deps
+
+- **no jq required** — stock `JSON.parse` handles everything
+- **no bash required** — windows just works
+- **cold start ~30–50ms** on node 20+, which is fine for statusline render cadence
+- **one tarball, one binary on PATH** — no vendored binaries, no `chmod +x` failures
+
+## license
 
 MIT.
