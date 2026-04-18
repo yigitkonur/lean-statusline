@@ -66,48 +66,102 @@ main().catch(err => {
 });
 
 // ── interactive menu (shown when TTY + no subcommand) ──
+// Arrow-key navigation matches the wizard TUI. Number/letter shortcuts
+// are preserved as a fast path so muscle memory still works.
 async function interactiveMenu() {
     const BOLD = '\x1b[1m', DIM = '\x1b[2m', RESET = '\x1b[0m';
-    const CYAN = '\x1b[36m', GREEN = '\x1b[32m';
+    const CYAN = '\x1b[36m';
+    const HIDE_CUR = '\x1b[?25l', SHOW_CUR = '\x1b[?25h';
+    const CLEAR = '\x1b[2J\x1b[3J\x1b[H';
 
-    process.stdout.write(`${BOLD}lean-statusline${RESET} ${DIM}v${PKG.version}${RESET}\n`);
-    process.stdout.write(`${DIM}${'─'.repeat(60)}${RESET}\n`);
-    process.stdout.write(`claude code's statusline — configure and check.\n\n`);
-    process.stdout.write(`  ${BOLD}(1)${RESET} install      ${DIM}patch settings.json + smoke test${RESET}\n`);
-    process.stdout.write(`  ${BOLD}(2)${RESET} doctor       ${DIM}verify install health${RESET}\n`);
-    process.stdout.write(`  ${BOLD}(3)${RESET} config       ${DIM}p10k-style wizard (preset + fine-tune)${RESET}\n`);
-    process.stdout.write(`  ${BOLD}(4)${RESET} uninstall    ${DIM}remove statusLine entry${RESET}\n`);
-    process.stdout.write(`  ${BOLD}(h)${RESET} help         ${DIM}full command reference${RESET}\n`);
-    process.stdout.write(`  ${BOLD}(q)${RESET} quit\n\n`);
-    process.stdout.write(`${GREEN}›${RESET} press a key: `);
+    const options = [
+        { key: '1', id: 'install',   label: 'install',   help: 'patch settings.json + smoke test' },
+        { key: '2', id: 'doctor',    label: 'doctor',    help: 'verify install health' },
+        { key: '3', id: 'config',    label: 'config',    help: 'interactive tui configurator' },
+        { key: '4', id: 'uninstall', label: 'uninstall', help: 'remove statusLine entry' },
+        { key: 'h', id: 'help',      label: 'help',      help: 'full command reference' },
+        { key: 'q', id: 'quit',      label: 'quit' },
+    ];
 
-    const key = await readSingleKey();
-    process.stdout.write('\n\n');
-    switch (key.toLowerCase()) {
-        case '1': return cmdInstall([]);
-        case '2': return cmdDoctor();
-        case '3': return cmdConfig([]);
-        case '4': return cmdUninstall([]);
-        case 'h': return printHelp();
-        case 'q':
-        default:  return;
+    const dispatch = async (id) => {
+        if (id === 'install')   return cmdInstall([]);
+        if (id === 'doctor')    return cmdDoctor();
+        if (id === 'config')    return cmdConfig([]);
+        if (id === 'uninstall') return cmdUninstall([]);
+        if (id === 'help')      return printHelp();
+        return;  // quit
+    };
+
+    const stdin = process.stdin;
+    const wasRaw = stdin.isRaw;
+    stdin.setRawMode?.(true);
+    stdin.resume();
+    stdin.setEncoding('utf8');
+    process.stdout.write(HIDE_CUR);
+
+    const cleanup = () => {
+        stdin.setRawMode?.(wasRaw || false);
+        process.stdout.write(SHOW_CUR);
+    };
+    process.on('exit', cleanup);
+
+    let focus = 0;
+    try {
+        while (true) {
+            // Full redraw each frame.
+            let out = CLEAR;
+            out += `${BOLD}lean-statusline${RESET} ${DIM}v${PKG.version}${RESET}\n`;
+            out += `${DIM}${'─'.repeat(60)}${RESET}\n`;
+            out += `claude code's statusline — configure and check.\n\n`;
+            for (let i = 0; i < options.length; i++) {
+                const o = options[i];
+                const sel = i === focus;
+                const arrow = sel ? `${CYAN}❯${RESET} ` : '  ';
+                const keyTag = sel ? `${BOLD}(${o.key})${RESET}` : `${DIM}(${o.key})${RESET}`;
+                const label  = sel ? `${BOLD}${o.label.padEnd(10)}${RESET}` : `${o.label.padEnd(10)}`;
+                const help   = o.help ? `${DIM}${o.help}${RESET}` : '';
+                out += `  ${arrow}${keyTag}  ${label} ${help}\n`;
+            }
+            out += `\n${DIM}↑↓ move · enter select · or press 1-4/h/q directly · esc/q to quit${RESET}`;
+            process.stdout.write(out);
+
+            // Read one key (may be a multi-byte arrow sequence).
+            const chunk = await new Promise(res => stdin.once('data', res));
+            let key;
+            switch (chunk) {
+                case '\x03':   process.exit(130);  // Ctrl-C
+                case '\x1b[A': key = 'up';    break;
+                case '\x1b[B': key = 'down';  break;
+                case '\r':
+                case '\n':     key = 'enter'; break;
+                case '\x1b':   key = 'esc';   break;
+                default:       key = chunk.toLowerCase();
+            }
+
+            if (key === 'up')    { focus = (focus - 1 + options.length) % options.length; continue; }
+            if (key === 'down')  { focus = (focus + 1) % options.length; continue; }
+            if (key === 'enter') {
+                cleanup();
+                process.stdout.write('\n');
+                return dispatch(options[focus].id);
+            }
+            if (key === 'esc' || key === 'q') {
+                cleanup();
+                process.stdout.write('\n');
+                return;
+            }
+            // Fast-path: number/letter shortcut jumps straight to that option.
+            const hit = options.findIndex(o => o.key === key);
+            if (hit >= 0) {
+                cleanup();
+                process.stdout.write('\n');
+                return dispatch(options[hit].id);
+            }
+            // Any other key: ignore and redraw.
+        }
+    } finally {
+        cleanup();
     }
-}
-
-function readSingleKey() {
-    return new Promise(resolve => {
-        const stdin = process.stdin;
-        const wasRaw = stdin.isRaw;
-        if (stdin.setRawMode) stdin.setRawMode(true);
-        stdin.resume();
-        stdin.setEncoding('utf8');
-        stdin.once('data', chunk => {
-            if (stdin.setRawMode) stdin.setRawMode(wasRaw || false);
-            stdin.pause();
-            if (chunk === '\x03') process.exit(130);  // Ctrl-C
-            resolve(chunk);
-        });
-    });
 }
 
 // ── render ──────────────────────────────────────────────
