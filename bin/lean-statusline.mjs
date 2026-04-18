@@ -91,9 +91,10 @@ async function cmdInstall(args) {
     }
     if (det.oldBashAt) console.log(`found old bash statusline: ${det.oldBashAt}`);
     if (det.ccline) console.log(`found ccline binary: ${det.ccline}`);
-    if (det.leanAlreadyInstalled && !flags['--force'] && !flags['--preset'] && !flags['--wizard']) {
-        console.log('lean-statusline already installed. use --force to re-patch, --preset NAME to switch preset, or --wizard to reconfigure.');
-        return;
+    // Always re-patch on install — the command is idempotent. If the user
+    // runs `install` twice they meant it both times. Only --no-patch skips.
+    if (det.leanAlreadyInstalled) {
+        console.log('lean-statusline already installed — re-patching.');
     }
 
     const bak = backupSettings();
