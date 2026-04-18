@@ -1,0 +1,14 @@
+{
+  "model": { "display_name": "Opus 4.7 (1M context)" },
+  "workspace": { "current_dir": "/tmp/project" },
+  "context_window": {
+    "context_window_size": 1000000,
+    "used_percentage": 12
+  },
+  "rate_limits": {
+    "five_hour": {
+      "used_percentage": 10,
+      "resets_at": 32503680000
+    }
+  }
+}

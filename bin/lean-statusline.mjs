@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { loadConfig, saveConfig, applyEnvOverrides, validateConfig, DEFAULTS, KNOWN_SEGMENTS, CONFIG_PATH } from '../lib/config.mjs';
 import { makePalette, colorsEnabled, pickIcons, applyBarStyle } from '../lib/colors.mjs';
 import { renderLine, detectDangerousPerms, resolveEffortLevel, readContextPct } from '../lib/segments.mjs';
+import { probe } from '../lib/probe.mjs';
 import { getRateLimits } from '../lib/usage.mjs';
 import {
     claudeHome, settingsPath, detectExisting, findOnPath, pickCommand,
@@ -155,8 +156,9 @@ async function renderFromStdin() {
     // `ps` twice and re-read settings.json on every render.
     const ctx = {
         input, cfg, palette, icons, rateLimits,
+        probe: (path, options) => probe(path, input, options),
         dangerousPerms: detectDangerousPerms(),
-        effortLevel: resolveEffortLevel(),
+        effortLevel: resolveEffortLevel(input),
         contextPct: readContextPct(input),
     };
     process.stdout.write(renderLine(ctx));
