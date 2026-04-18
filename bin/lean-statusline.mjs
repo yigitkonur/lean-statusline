@@ -9,6 +9,7 @@ import { loadConfig, saveConfig, applyEnvOverrides, validateConfig, DEFAULTS, KN
 import { makePalette, colorsEnabled, pickIcons, applyBarStyle } from '../lib/colors.mjs';
 import { renderLine, detectDangerousPerms, resolveEffortLevel, readContextPct } from '../lib/segments.mjs';
 import { probe } from '../lib/probe.mjs';
+import { loadState, saveState, tickState } from '../lib/state.mjs';
 import { getRateLimits } from '../lib/usage.mjs';
 import {
     claudeHome, settingsPath, detectExisting, findOnPath, pickCommand,
@@ -40,7 +41,7 @@ async function main() {
         case 'install':    return cmdInstall(rest);
         case 'uninstall':  return cmdUninstall(rest);
         case 'config':     return cmdConfig(rest);
-        case 'doctor':     return cmdDoctor();
+        case 'doctor':     return cmdDoctor(rest);
         case 'selfupdate':
         case 'update':     return cmdSelfupdate(rest);
         case 'version':
@@ -82,7 +83,7 @@ async function interactiveMenu() {
 
     const dispatch = (id) => {
         if (id === 'install')   return cmdInstall([]);
-        if (id === 'doctor')    return cmdDoctor();
+        if (id === 'doctor')    return cmdDoctor([]);
         if (id === 'config')    return cmdConfig([]);
         if (id === 'uninstall') return cmdUninstall([]);
         if (id === 'help')      return printHelp();
@@ -151,17 +152,25 @@ async function renderFromStdin() {
     const palette = makePalette(colorsEnabled(undefined, cfg.colors), cfg.palette);
     const icons = applyBarStyle(pickIcons(cfg.icons), cfg.barStyle);
     const rateLimits = await getRateLimits(input);
+    const state = loadState(input.session_id);
     // Resolve per-process facts once so segments stay pure (ctx) → string.
     // These used to be looked up inside each segment call, which spawned
     // `ps` twice and re-read settings.json on every render.
     const ctx = {
-        input, cfg, palette, icons, rateLimits,
+        input, cfg, palette, icons, rateLimits, state,
         probe: (path, options) => probe(path, input, options),
         dangerousPerms: detectDangerousPerms(),
         effortLevel: resolveEffortLevel(input),
         contextPct: readContextPct(input),
     };
     process.stdout.write(renderLine(ctx));
+    tickState(state, {
+        'context_window.used_percentage': ctx.contextPct,
+        'agent.name': probe('agent.name', input),
+        'session_name': probe('session_name', input),
+        'effortLevel': ctx.effortLevel,
+    });
+    saveState(input.session_id, state);
 }
 
 // ── install ─────────────────────────────────────────────
@@ -397,8 +406,9 @@ async function cmdSelfupdate(args) {
 }
 
 // ── doctor ──────────────────────────────────────────────
-async function cmdDoctor() {
-    const { report, fails } = await runDoctor(BIN);
+async function cmdDoctor(args = []) {
+    const flags = parseFlags(args, { '--clean': false });
+    const { report, fails } = await runDoctor(BIN, { clean: flags['--clean'] });
     console.log(report);
     process.exit(fails ? 1 : 0);
 }
