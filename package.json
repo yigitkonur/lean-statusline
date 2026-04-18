@@ -1,6 +1,6 @@
 {
   "name": "lean-statusline",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "statusline for claude code — minimal/compact/full/classic presets, p10k-style configure wizard, node-only, zero deps.",
   "type": "module",
   "bin": {

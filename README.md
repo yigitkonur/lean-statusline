@@ -1,12 +1,13 @@
 # lean-statusline
 
-one-line statusline for [claude code](https://claude.com/claude-code). the stuff you actually glance at, nothing you don't.
+statusline for [claude code](https://claude.com/claude-code). the stuff you actually glance at, nothing you don't.
 
 ```
-Opus 4.7 (1M context) · ✎ 2% · mcp-researchpowerpack-http (main*) · 5h 40% · 7d 47%
+🔒 mac-mini · Opus 4.7 (1M context) · ✎ 32% · repo (main*)
+current ●●●●○○○○○○  40% (in 1h30m) · weekly ●●●●●○○○○○  47% (in 5d6h)
 ```
 
-model · context % · dir (branch, `*` if dirty) · 5-hour + 7-day rate-limit usage. done.
+default layout is **compact** (two lines): header with model + context % + dir + branch on line 1, rate-limit bars with countdowns on line 2. `minimal` and `full` are one and three-line alternatives. everything's configurable via an interactive TUI wizard.
 
 node-only, zero deps, works on mac/linux/windows. no bash, no jq, no vendored binaries.
 
@@ -16,7 +17,7 @@ the stock-ish 3-line statusline eats four rows above every prompt:
 
 ![before: the busy 3-line statusline](assets/current-statusline.png)
 
-on a 40-row terminal that's 10% of your screen re-rendering every time claude emits something. lean-statusline collapses the same info to one line: numbers over bars, percentages over 88-char strips. session timer and effort indicator are opt-in, not default.
+on a 40-row terminal that's 10% of your screen re-rendering every time claude emits something. lean-statusline trims the same info to one or two lines depending on preset. session timer, cost, and effort indicator are opt-in, not default.
 
 ## install
 
@@ -24,24 +25,26 @@ on a 40-row terminal that's 10% of your screen re-rendering every time claude em
 
 ```bash
 npm install -g lean-statusline
-lean-statusline install --wizard
+lean-statusline install
 ```
 
-`install` backs up `~/.claude/settings.json`, wires the `statusLine` command, runs a smoke test. `--wizard` launches the p10k-style configurator: tests your terminal's unicode and colors, lets you pick a preset, then fine-tunes. restart claude code when done.
+`install` backs up `~/.claude/settings.json`, wires the `statusLine` command, runs a smoke test, then launches the configure wizard (when your terminal supports it). restart claude code when done.
 
-skip the wizard and pick a preset directly:
+pick a preset directly (skip the wizard):
 
 ```bash
-lean-statusline install --preset classic      # or: minimal | compact | full
+lean-statusline install --preset full     # or: minimal | compact | full
 ```
+
+(`classic` is accepted as a legacy alias for `full`.)
 
 ### no global install
 
 ```bash
-npx lean-statusline install --wizard
+npx -y lean-statusline@latest install
 ```
 
-same thing. patched command in `settings.json` falls back to an explicit `node "/path/to/bin"` so it keeps working without a global bin.
+same thing. if `npx` is the entry point, the patched command uses the self-updating `npx -y lean-statusline@latest` form so you never have to manually upgrade. ~700ms cold + ~100ms warm per render, vs ~50ms for the global bin.
 
 ### from source
 
@@ -57,42 +60,35 @@ works natively — no bash, no git bash, no wsl. just node 20+ on PATH.
 
 ```powershell
 npm install -g lean-statusline
-lean-statusline install --wizard
+lean-statusline install
 ```
 
 ## presets
 
-four starting points. pick one with the wizard, or `install --preset NAME`:
+three starting points. pick one with the wizard, or `install --preset NAME`:
 
-**minimal** — single line. the default. just numbers, no bars.
-
-```
-Opus 4.7 · ✎ 2% · repo (main) · 5h 40% · 7d 47%
-```
-
-**compact** — two lines. header + rate-limit bars with reset times.
+**minimal** — single line. just numbers, no bars.
 
 ```
-Opus 4.7 · ✎ 2% · repo (main)
-current ●●●●○○○○○○  40% ⟳ 6:00am (in 1h31m) · weekly ●●●○○○○○○○  47% ⟳ apr 23, 12:00pm (in 5d7h)
+🔒 mac-mini · Opus 4.7 · ✎ 2% · repo (main) · 5h 40% · 7d 47%
 ```
 
-**full** — three lines. adds a full-width context usage bar below.
+**compact** — default. two lines. header + rate-limit bars with countdowns.
 
 ```
-Opus 4.7 · ✎ 2% · repo (main) · ◐ auto
-current ●●●●○○○○○○  40% ⟳ 6:00am (in 1h31m) · weekly ●●●○○○○○○○  47% ⟳ apr 23, 12:00pm (in 5d7h)
-context ●●●●●●○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○
+🔒 mac-mini · Opus 4.7 · ✎ 2% · repo (main)
+current ●●●●○○○○○○  40% (in 1h31m) · weekly ●●●○○○○○○○  47% (in 5d7h)
 ```
 
-**classic** — four lines. exact clone of the old bash statusline, including the `▶▶ bypass permissions on` banner that appears when claude code runs with `--dangerously-skip-permissions`. pure nostalgia fuel with a bit more vertical real estate.
+**full** — three lines. adds cost, lines-changed, elapsed on the header + full-width context bar below. silent extras like the ▶▶ bypass-permissions banner or the ⚠ >200k overflow badge appear as additional lines only when their condition is active.
 
 ```
-Opus 4.7 · ✎ 0% · ⚡ repo (main) · ◐ auto
-current ●●●●○○○○○○  40% ⟳ 6:00am (in 1h31m) · weekly ●●●○○○○○○○  47% ⟳ apr 23, 12:00pm (in 5d7h)
-context ●●●●●●○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○
-▶▶ bypass permissions on (shift+tab to cycle)
+🔒 mac-mini · Opus 4.7 · ✎ 2% · repo (main) · ◐ auto · $0.23 · +156 -23 · ⏱ 45m
+current ●●●●○○○○○○  40% (in 1h31m) · weekly ●●●○○○○○○○  47% (in 5d6h)
+context ●●●●●●●●●●●●●●●●●●●○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○
 ```
+
+(the previous `classic` preset from 0.3.x is still accepted as a name; it auto-migrates to `full` since its segments were all silent-unless-triggered and merged in.)
 
 switch between them any time:
 
@@ -109,8 +105,8 @@ lean-statusline config --preset compact
 | `<dir>`         | basename of `cwd`                                                                   |
 | `(main)`        | `git symbolic-ref --short HEAD` in `cwd`                                           |
 | `(main*)`       | `*` = dirty working tree (via `status --porcelain`)                                |
-| `5h 40%`        | anthropic usage endpoint, 5-hour bucket. stdin preferred, api fallback, 60s cache  |
-| `7d 47%`        | same, 7-day bucket                                                                 |
+| `5h 40%` / `current ●●●●○○○○○○  40% (in 1h30m)` | anthropic usage endpoint, 5-hour bucket. stdin preferred, api fallback, 60s cache. absolute reset time was removed in 0.4.3 — countdown carries the same signal more compactly |
+| `7d 47%` / `weekly …`                            | same, 7-day bucket                                                                 |
 | `⚡` (red)      | shown when claude code launched with `--dangerously-skip-permissions`              |
 | `◐ auto` (opt)  | effort level from `$CLAUDE_CODE_EFFORT_LEVEL` (or `settings.json#env`)             |
 | `$ $0.23`       | session cost from `cost.total_cost_usd` (opt segment `cost`)                       |
@@ -126,16 +122,18 @@ percentages are color-graded: green under 50, orange 50–70, yellow 70–90, re
 
 ## configure
 
-config lives at `~/.claude/lean-statusline.json`. five ways to edit it:
+config lives at `~/.claude/lean-statusline.json`. the interactive TUI wizard is the main surface — arrow keys to navigate, live preview at top updates on every keystroke, 5 paginated steps (preset / appearance + git / core segments / rich segments / thresholds + advanced). tab/shift-tab move between steps.
 
 ```bash
-lean-statusline config                  # p10k-style interactive wizard
-lean-statusline config --preset NAME    # apply a preset (see above)
+lean-statusline config                  # interactive TUI (arrow-key navigation, 5 steps)
+lean-statusline config --preset NAME    # non-interactive preset swap (see above)
 lean-statusline config --show           # print current (or defaults if no file)
 lean-statusline config --edit           # open in $EDITOR
 lean-statusline config --set show.bars=true separator=• icons=unicode
-lean-statusline config --reset
+lean-statusline config --reset          # back to defaults (compact preset)
 ```
+
+wizard keybindings: `↑↓` field · `←→` adjust · `space` toggle · `tab` next step · `shift+tab` prev · `s` save · `r` reset to saved · `q`/`esc` quit.
 
 the wizard is modeled on `p10k configure`: live preview at top, single-key answers, capability tests via visual confirmation (you tell it whether the glyphs rendered). no enter key required.
 
@@ -320,8 +318,8 @@ npm uninstall -g lean-statusline   # if globally installed
 
 ## what's next
 
-- **`subagentStatusLine`** — claude code ships a parallel hook for customizing subagent rows in the agent panel. same JSON contract, different stdin shape. planned for `0.4.x`.
-- **OSC 8 clickable `dir`** — shipped behind `show.dirLink` (off by default). wraps the dir name in an osc 8 hyperlink to `git remote get-url origin` when available. requires a terminal that supports hyperlinks (iterm2, wezterm, kitty, ghostty).
+- **`subagentStatusLine`** — claude code ships a parallel hook for customizing subagent rows in the agent panel. same JSON contract, different stdin shape. under consideration.
+- **OSC 8 clickable `dir`** — wrap the dir name in an osc 8 hyperlink to `git remote get-url origin` when available. requires a terminal that supports hyperlinks (iterm2, wezterm, kitty, ghostty). not implemented yet.
 
 ## license
 
