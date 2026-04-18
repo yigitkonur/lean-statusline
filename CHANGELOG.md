@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 — nothing yet.
 
+## [1.0.2] — 2026-04-18
+
+### Changed
+- Wizard: pressing `enter` on any field now advances to the next step (form-wizard convention). Previously `enter` was an alias for `→` and cycled enum values. Cycling still works via `←` / `→`; booleans still toggle with `space`. This matches the user-facing footer hint "enter / tab next step".
+- Wizard: 5 essential segments (`ctx`, `5h`, `7d`, `rate-5h-full`, `rate-7d-full`) are now **locked** in the configure UI. They render as `[●] always on` and are skipped by `↑↓` navigation — you can't silently drop the primary signals by misclicking. Power users who really want them off can hand-edit `~/.claude/lean-statusline.json`.
+- Wizard: toggleable segment count is now 15 (down from 20). Keeps the "core + rich" page pair comfortably under 20 rows.
+
 ## [1.0.1] — 2026-04-18
 
 Documentation-only patch. No code behavior change.
@@ -168,7 +175,8 @@ First public release on npm.
 - SSH segment for remote-session indication.
 - `install` / `uninstall` / `config` / `doctor` / `version` subcommands.
 
-[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/yigitkonur/lean-statusline/compare/v0.4.5...v1.0.0
 [0.4.5]: https://github.com/yigitkonur/lean-statusline/compare/v0.4.4...v0.4.5
