@@ -7,6 +7,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, saveConfig, applyEnvOverrides, validateConfig, DEFAULTS, KNOWN_SEGMENTS, CONFIG_PATH } from '../lib/config.mjs';
 import { makePalette, colorsEnabled, pickIcons, applyBarStyle } from '../lib/colors.mjs';
+import { applyLayout, resolveWidth } from '../lib/layout.mjs';
 import { renderLine, detectDangerousPerms, resolveEffortLevel, readContextPct } from '../lib/segments.mjs';
 import { probe } from '../lib/probe.mjs';
 import { loadState, saveState, tickState } from '../lib/state.mjs';
@@ -176,7 +177,8 @@ async function renderFromStdin() {
         effortLevel: resolveEffortLevel(input),
         contextPct: readContextPct(input),
     };
-    process.stdout.write(renderLine(ctx));
+    const rendered = renderLine({ ...ctx, layoutTagged: true });
+    process.stdout.write(applyLayout(ctx, rendered, resolveWidth(ctx)));
     tickState(state, {
         'context_window.used_percentage': ctx.contextPct,
         'agent.name': probe('agent.name', input),
