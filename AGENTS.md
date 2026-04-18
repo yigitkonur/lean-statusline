@@ -107,7 +107,7 @@ Use `gh release create` to attach release notes. Pull the notes straight from CH
 
 ```bash
 # Extract the new section body (everything between the new heading and the next one):
-awk '/^## \['<X.Y.Z>'\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md > /tmp/release-notes.md
+awk '/^## \['<X.Y.Z>'\]/{flag=1; next} /^## \[|^\[[^]]+\]:/{flag=0} flag' CHANGELOG.md > /tmp/release-notes.md
 
 gh release create v<X.Y.Z> \
   --title "v<X.Y.Z>" \
@@ -139,7 +139,9 @@ for tag in $(git tag -l 'v*' | sort -V); do
   ver="${tag#v}"
   # Skip if a release already exists for this tag
   gh release view "$tag" >/dev/null 2>&1 && continue
-  notes=$(awk '/^## \['"$ver"'\]/{flag=1; next} /^## \[/{flag=0} flag' CHANGELOG.md)
+  # Stop at the next `## [` heading OR any `[label]:` compare-link line
+  # (second pattern matters for the oldest version — it has no next heading).
+  notes=$(awk '/^## \['"$ver"'\]/{flag=1; next} /^## \[|^\[[^]]+\]:/{flag=0} flag' CHANGELOG.md)
   [ -z "$notes" ] && notes="See CHANGELOG.md"
   gh release create "$tag" --title "$tag" --notes "$notes"
 done

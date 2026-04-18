@@ -1,6 +1,10 @@
 # lean-statusline
 
+[![npm](https://img.shields.io/npm/v/lean-statusline.svg)](https://www.npmjs.com/package/lean-statusline) [![node](https://img.shields.io/node/v/lean-statusline)](https://nodejs.org/) [![license](https://img.shields.io/npm/l/lean-statusline)](LICENSE)
+
 statusline for [claude code](https://claude.com/claude-code). the stuff you actually glance at, nothing you don't.
+
+**stable since v1.0.0.** config schema, CLI surface, segment names, and preset names are semver-committed — see [CHANGELOG.md](CHANGELOG.md) for the exact contract.
 
 ```
 🔒 mac-mini · Opus 4.7 (1M context) · ✎ 32% · repo (main*)
@@ -300,6 +304,34 @@ your terminal theme is probably overriding 24-bit colors. `colors: false` in con
 ### old bash statusline still present
 `lean-statusline doctor` warns about `~/.claude/statusline.sh`. remove it manually once you're happy.
 
+### on windows: nothing shows, or the command hangs
+native-windows claude code has known rendering regressions around `statusLine` ([anthropics/claude-code#31670](https://github.com/anthropics/claude-code/issues/31670), [#44746](https://github.com/anthropics/claude-code/issues/44746)). if the line doesn't appear:
+
+1. verify workspace trust is accepted in `~/.claude.json`.
+2. try an explicit absolute path as the command: `node "C:/Users/you/AppData/Roaming/npm/node_modules/lean-statusline/bin/lean-statusline.mjs"`.
+3. run the interactive wizard from PowerShell or Windows Terminal — git bash under MinTTY reports `isTTY=false` and the wizard will refuse to start.
+
+### developer: I want to actually run the interactive-TUI tests
+the PTY-driven suite (`test/wizard.test.mjs`) is gated behind an env var so `npm test` stays under 3 seconds. to include it:
+
+```bash
+LEAN_RUN_PTY_TESTS=1 npm test
+```
+
+requires `@lydell/node-pty` to be installed (it's a devDep). skipped on windows regardless per microsoft/node-pty#827.
+
+## update
+
+```bash
+lean-statusline selfupdate          # install @latest globally
+lean-statusline selfupdate --check  # report newer version, don't apply
+lean-statusline selfupdate --version 1.0.0   # pin to a specific version
+```
+
+`selfupdate` wraps `npm install -g lean-statusline@<version>`. If you installed via `npx -y lean-statusline@latest` (and haven't also done `npm install -g`), updates happen automatically — npx re-resolves `@latest` against the registry on every invocation. The cost is ~700ms per render vs ~50ms for a global bin.
+
+If you see `EACCES` from npm on macOS/Linux, it means the global prefix isn't writable by your user — either re-run with `sudo`, or follow npm's [resolving-eacces-permissions-errors](https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally) guide.
+
 ## uninstall
 
 ```bash
@@ -320,6 +352,11 @@ npm uninstall -g lean-statusline   # if globally installed
 
 - **`subagentStatusLine`** — claude code ships a parallel hook for customizing subagent rows in the agent panel. same JSON contract, different stdin shape. under consideration.
 - **OSC 8 clickable `dir`** — wrap the dir name in an osc 8 hyperlink to `git remote get-url origin` when available. requires a terminal that supports hyperlinks (iterm2, wezterm, kitty, ghostty). not implemented yet.
+
+## see also
+
+- [CHANGELOG.md](CHANGELOG.md) — full version history, semver-committed stable surface for v1.
+- [AGENTS.md](AGENTS.md) — release + maintenance playbook for coding agents and humans.
 
 ## license
 

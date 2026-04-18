@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 — nothing yet.
 
+## [1.0.1] — 2026-04-18
+
+Documentation-only patch. No code behavior change.
+
+### Fixed
+- `AGENTS.md` release procedure's `awk` recipe now terminates at the `[label]: URL` compare-link block. Previously, extracting the oldest version's release notes bled the entire compare-link section into the output — all 18 backfilled GitHub release bodies had to be re-edited.
+- `README.md` was missing documentation for `lean-statusline selfupdate` (shipped in 0.3.7). Added a new "update" section above "uninstall".
+
+### Added
+- `README.md`: npm + node + license badges at the top; explicit "stable since v1.0.0" note.
+- `README.md#troubleshooting`: Windows-specific advice covering Claude Code's native-Windows `statusLine` regressions ([anthropics/claude-code#31670](https://github.com/anthropics/claude-code/issues/31670), [#44746](https://github.com/anthropics/claude-code/issues/44746)) and how to run the PTY test suite locally.
+- `README.md#see-also`: cross-links to `CHANGELOG.md` and `AGENTS.md`.
+
 ## [1.0.0] — 2026-04-18
 
 First stable release. Everything shipped in the `0.4.x` line has now had enough bake time that the public surface (config schema, CLI, segment names, preset names) is committed. Future `1.x.y` releases will avoid breaking these contracts.
@@ -155,7 +168,8 @@ First public release on npm.
 - SSH segment for remote-session indication.
 - `install` / `uninstall` / `config` / `doctor` / `version` subcommands.
 
-[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/yigitkonur/lean-statusline/compare/v0.4.5...v1.0.0
 [0.4.5]: https://github.com/yigitkonur/lean-statusline/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/yigitkonur/lean-statusline/compare/v0.4.3...v0.4.4
