@@ -113,6 +113,14 @@ lean-statusline config --preset compact
 | `7d 47%`        | same, 7-day bucket                                                                 |
 | `⚡` (red)      | shown when claude code launched with `--dangerously-skip-permissions`              |
 | `◐ auto` (opt)  | effort level from `$CLAUDE_CODE_EFFORT_LEVEL` (or `settings.json#env`)             |
+| `$ $0.23`       | session cost from `cost.total_cost_usd` (opt segment `cost`)                       |
+| `+156 -23`      | lines added/removed from `cost.total_lines_*` (opt segment `lines`)                |
+| `⏱ 45m 12s`     | wall-clock elapsed from `cost.total_duration_ms` (opt segment `elapsed`)           |
+| `🌿 my-feature` | worktree name from `worktree.name` / `workspace.git_worktree` (opt segment `worktree`) |
+| `🤖 <name>`     | subagent name from `agent.name` during `--agent` sessions (opt segment `agent`)    |
+| `-- INSERT --`  | vim mode indicator from `vim.mode` (opt segment `vim`)                             |
+| `[my-session]`  | custom session name from `--name`/`/rename` (opt segment `session-name`)           |
+| `⚠ >200k`       | red badge when `exceeds_200k_tokens` is true (opt segment `overflow`)              |
 
 percentages are color-graded: green under 50, orange 50–70, yellow 70–90, red 90+. thresholds are configurable.
 
@@ -149,7 +157,7 @@ full schema with defaults:
 }
 ```
 
-**segments** — any subset of: `model`, `ctx`, `dir`, `5h`, `7d`, `rate-5h-full`, `rate-7d-full`, `context-bar`, `bypass-banner`, `session`, `effort`. order matters. use `"\n"` to break to a new line (that's how the multi-line presets work).
+**segments** — any subset of: `model`, `ctx`, `dir`, `5h`, `7d`, `rate-5h-full`, `rate-7d-full`, `context-bar`, `bypass-banner`, `ssh`, `elapsed` (was `session`), `effort`, `cost`, `lines`, `worktree`, `agent`, `vim`, `session-name`, `output-style`, `overflow`. order matters. use `"\n"` to break to a new line (that's how the multi-line presets work). segments whose source field is absent render nothing — no stray separators.
 **show.bars** — render `●●●●○○○○○○` strips next to each percentage. off by default because the number is the signal.
 **icons** — `auto` (unicode on modern terminals, ascii elsewhere), `unicode` (force), or `ascii` (force).
 **thresholds** — where the color gradient kicks in.
@@ -176,6 +184,23 @@ set them in claude code's `settings.json` under `env`:
   "statusLine": { "type": "command", "command": "lean-statusline" }
 }
 ```
+
+## keep it fresh (refreshInterval)
+
+claude code only re-renders the statusline on message boundaries. if you're running the `full` or `classic` preset with the `elapsed`, `cost`, or rate-limit countdown segments, those numbers freeze while the agent is working and nothing else is posting. add a `refreshInterval` to your settings.json to force a re-render on a timer:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "lean-statusline",
+    "refreshInterval": 5,
+    "padding": 2
+  }
+}
+```
+
+minimum is `1` (second). `5` is a sane default for the countdown segments. `padding` adds extra horizontal spacing (in characters) before the line — optional, defaults to `0`.
 
 ## ssh detection
 
@@ -292,6 +317,11 @@ npm uninstall -g lean-statusline   # if globally installed
 - **no bash required** — windows just works
 - **cold start ~30–50ms** on node 20+, which is fine for statusline render cadence
 - **one tarball, one binary on PATH** — no vendored binaries, no `chmod +x` failures
+
+## what's next
+
+- **`subagentStatusLine`** — claude code ships a parallel hook for customizing subagent rows in the agent panel. same JSON contract, different stdin shape. planned for `0.4.x`.
+- **OSC 8 clickable `dir`** — shipped behind `show.dirLink` (off by default). wraps the dir name in an osc 8 hyperlink to `git remote get-url origin` when available. requires a terminal that supports hyperlinks (iterm2, wezterm, kitty, ghostty).
 
 ## license
 
