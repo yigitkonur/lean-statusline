@@ -14,6 +14,8 @@ import {
     backupSettings, patchSettings, unpatchSettings, smokeTest,
 } from '../lib/install.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
+import { PRESETS, PRESET_NAMES, applyPreset } from '../lib/presets.mjs';
+import { runWizard } from '../lib/wizard.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -75,7 +77,10 @@ async function renderFromStdin() {
 
 // ── install ─────────────────────────────────────────────
 async function cmdInstall(args) {
-    const flags = parseFlags(args, { '--force': false, '--no-patch': false, '--dir': null });
+    const flags = parseFlags(args, {
+        '--force': false, '--no-patch': false, '--dir': null,
+        '--preset': null, '--wizard': false,
+    });
     if (flags['--dir']) process.env.LEAN_STATUSLINE_CLAUDE_HOME = flags['--dir'];
 
     const det = detectExisting();
@@ -86,13 +91,24 @@ async function cmdInstall(args) {
     }
     if (det.oldBashAt) console.log(`found old bash statusline: ${det.oldBashAt}`);
     if (det.ccline) console.log(`found ccline binary: ${det.ccline}`);
-    if (det.leanAlreadyInstalled && !flags['--force']) {
-        console.log('lean-statusline already installed. use --force to re-patch.');
+    if (det.leanAlreadyInstalled && !flags['--force'] && !flags['--preset'] && !flags['--wizard']) {
+        console.log('lean-statusline already installed. use --force to re-patch, --preset NAME to switch preset, or --wizard to reconfigure.');
         return;
     }
 
     const bak = backupSettings();
     if (bak) console.log(`backed up settings → ${bak}`);
+
+    // Apply preset non-interactively, if requested.
+    if (flags['--preset']) {
+        if (!PRESET_NAMES.includes(flags['--preset'])) {
+            console.error(`unknown preset: ${flags['--preset']}. known: ${PRESET_NAMES.join(', ')}`);
+            process.exit(2);
+        }
+        const { config } = loadConfig();
+        saveConfig(applyPreset(config, flags['--preset']));
+        console.log(`applied preset: ${flags['--preset']}`);
+    }
 
     const command = pickCommand(BIN);
     if (!flags['--no-patch']) {
@@ -106,6 +122,14 @@ async function cmdInstall(args) {
     const s = await smokeTest(BIN);
     if (s.ok) console.log(`smoke test passed: ${s.stdout.trim().slice(0, 60)}…`);
     else console.log(`smoke test FAILED: ${s.stderr || 'no output'}`);
+
+    // Offer wizard (if tty) or run it automatically when --wizard.
+    if (flags['--wizard']) {
+        console.log('\nlaunching wizard...');
+        await runWizard();
+    } else if (process.stdin.isTTY && !flags['--preset']) {
+        console.log('\ntip: run `lean-statusline config` to pick a preset and fine-tune (4 presets: minimal / compact / full / classic).');
+    }
 
     console.log('\ndone. restart Claude Code to see the new statusline.');
 }
@@ -124,11 +148,26 @@ async function cmdUninstall(_args) {
 
 // ── config ──────────────────────────────────────────────
 async function cmdConfig(args) {
-    if (args.length === 0 || args[0] === '--show') {
+    if (args[0] === '--show') {
         const { config, path, warning } = loadConfig();
         console.log(`# ${path}${existsSync(path) ? '' : '  (not yet created — showing defaults)'}`);
         if (warning) console.log(`# WARNING: ${warning}`);
         console.log(JSON.stringify(config, null, 2));
+        return;
+    }
+    if (args[0] === '--preset') {
+        if (!args[1]) {
+            console.log('available presets:');
+            for (const n of PRESET_NAMES) console.log(`  ${n.padEnd(10)} ${PRESETS[n].description}`);
+            return;
+        }
+        if (!PRESET_NAMES.includes(args[1])) {
+            console.error(`unknown preset: ${args[1]}. known: ${PRESET_NAMES.join(', ')}`);
+            process.exit(2);
+        }
+        const { config } = loadConfig();
+        saveConfig(applyPreset(config, args[1]));
+        console.log(`applied preset "${args[1]}" → ${CONFIG_PATH}`);
         return;
     }
     if (args[0] === '--reset') {
@@ -172,8 +211,8 @@ async function cmdConfig(args) {
         console.log(`wrote ${CONFIG_PATH}`);
         return;
     }
-    // Interactive wizard
-    return configWizard();
+    // Interactive p10k-style wizard (default when `config` has no args)
+    return runWizard();
 }
 
 function applySet(cfg, key, val) {
@@ -194,40 +233,6 @@ function applySet(cfg, key, val) {
     else if (val === 'false') cur[leaf] = false;
     else if (!isNaN(Number(val)) && val.trim() !== '') cur[leaf] = Number(val);
     else cur[leaf] = val;
-}
-
-async function configWizard() {
-    const readline = await import('node:readline/promises');
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    const { config } = loadConfig();
-    console.log(`\nconfigure lean-statusline (enter to keep current)\n`);
-
-    const segsIn = await rl.question(`segments [${config.segments.join(',')}]\n  (choose from: ${KNOWN_SEGMENTS.join(', ')})\n> `);
-    if (segsIn.trim()) config.segments = segsIn.split(',').map(s => s.trim()).filter(Boolean);
-
-    const iconsIn = await rl.question(`icons [${config.icons}] (auto|unicode|ascii)\n> `);
-    if (iconsIn.trim()) config.icons = iconsIn.trim();
-
-    const sepIn = await rl.question(`separator [${config.separator}]\n> `);
-    if (sepIn.trim()) config.separator = sepIn;
-
-    const barsIn = await rl.question(`show bars alongside percentages? [${config.show.bars ? 'y' : 'n'}] (y/n)\n> `);
-    if (barsIn.trim()) config.show.bars = barsIn.trim().toLowerCase().startsWith('y');
-
-    const branchIn = await rl.question(`show git branch? [${config.show.branch ? 'y' : 'n'}] (y/n)\n> `);
-    if (branchIn.trim()) config.show.branch = branchIn.trim().toLowerCase().startsWith('y');
-
-    rl.close();
-
-    const errs = validateConfig(config);
-    if (errs.length) {
-        console.error('\nconfig invalid:');
-        for (const e of errs) console.error(`  - ${e}`);
-        process.exit(1);
-    }
-    saveConfig(config);
-    console.log(`\nwrote ${CONFIG_PATH}`);
-    console.log(`preview: lean-statusline doctor`);
 }
 
 // ── doctor ──────────────────────────────────────────────
@@ -251,19 +256,28 @@ function parseFlags(args, spec) {
 }
 
 function printHelp() {
-    console.log(`lean-statusline — one-line statusline for Claude Code
+    console.log(`lean-statusline — statusline for Claude Code
 
 usage:
-  lean-statusline                         render statusline (stdin = Claude Code JSON)
-  lean-statusline install [--force] [--no-patch] [--dir PATH]
+  lean-statusline                              render (stdin = Claude Code JSON)
+  lean-statusline install [opts]               install + patch settings.json
+    --force                                    re-patch even if already installed
+    --no-patch                                 don't touch settings.json
+    --dir PATH                                 override ~/.claude location
+    --preset NAME                              apply preset (minimal|compact|full|classic)
+    --wizard                                   launch configure wizard after install
   lean-statusline uninstall
-  lean-statusline config                  interactive wizard
-  lean-statusline config --show           print current config
-  lean-statusline config --set key=value  set values (repeatable)
-  lean-statusline config --edit           open config in \$EDITOR
-  lean-statusline config --reset          reset to defaults
-  lean-statusline doctor                  verify install
+  lean-statusline config                       p10k-style interactive wizard
+  lean-statusline config --show                print current config
+  lean-statusline config --preset [NAME]       list or apply a preset
+  lean-statusline config --set key=value [..]  set values
+  lean-statusline config --edit                open config in \$EDITOR
+  lean-statusline config --reset               reset to defaults
+  lean-statusline doctor                       verify install health
   lean-statusline version
+
+presets:
+  ${PRESET_NAMES.map(n => `${n.padEnd(10)} ${PRESETS[n].description}`).join('\n  ')}
 
 config file:  ${CONFIG_PATH}
 repo:         ${PKG.homepage}

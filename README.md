@@ -24,25 +24,31 @@ on a 40-row terminal that's 10% of your screen re-rendering every time claude em
 
 ```bash
 npm install -g lean-statusline
-lean-statusline install
+lean-statusline install --wizard
 ```
 
-that's it. `install` backs up `~/.claude/settings.json`, wires the `statusLine` command, runs a smoke test, and tells you what it changed. restart claude code.
+`install` backs up `~/.claude/settings.json`, wires the `statusLine` command, runs a smoke test. `--wizard` launches the p10k-style configurator: tests your terminal's unicode and colors, lets you pick a preset, then fine-tunes. restart claude code when done.
+
+skip the wizard and pick a preset directly:
+
+```bash
+lean-statusline install --preset classic      # or: minimal | compact | full
+```
 
 ### no global install
 
 ```bash
-npx lean-statusline install
+npx lean-statusline install --wizard
 ```
 
-same thing, without the global bin. the patched command in `settings.json` falls back to an explicit `node "/path/to/bin"` so it keeps working.
+same thing. patched command in `settings.json` falls back to an explicit `node "/path/to/bin"` so it keeps working without a global bin.
 
 ### from source
 
 ```bash
 git clone https://github.com/yigitkonur/lean-statusline.git
 cd lean-statusline
-npm link          # or: node bin/lean-statusline.mjs install
+npm link                          # or: node bin/lean-statusline.mjs install
 ```
 
 ### windows
@@ -51,7 +57,47 @@ works natively — no bash, no git bash, no wsl. just node 20+ on PATH.
 
 ```powershell
 npm install -g lean-statusline
-lean-statusline install
+lean-statusline install --wizard
+```
+
+## presets
+
+four starting points. pick one with the wizard, or `install --preset NAME`:
+
+**minimal** — single line. the default. just numbers, no bars.
+
+```
+Opus 4.7 · ✎ 2% · repo (main) · 5h 40% · 7d 47%
+```
+
+**compact** — two lines. header + rate-limit bars with reset times.
+
+```
+Opus 4.7 · ✎ 2% · repo (main)
+current ●●●●○○○○○○  40% ⟳ 6:00am (in 1h31m) · weekly ●●●○○○○○○○  47% ⟳ apr 23, 12:00pm (in 5d7h)
+```
+
+**full** — three lines. adds a full-width context usage bar below.
+
+```
+Opus 4.7 · ✎ 2% · repo (main) · ◐ auto
+current ●●●●○○○○○○  40% ⟳ 6:00am (in 1h31m) · weekly ●●●○○○○○○○  47% ⟳ apr 23, 12:00pm (in 5d7h)
+context ●●●●●●○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○
+```
+
+**classic** — four lines. exact clone of the old bash statusline, including the `▶▶ bypass permissions on` banner that appears when claude code runs with `--dangerously-skip-permissions`. pure nostalgia fuel with a bit more vertical real estate.
+
+```
+Opus 4.7 · ✎ 0% · ⚡ repo (main) · ◐ auto
+current ●●●●○○○○○○  40% ⟳ 6:00am (in 1h31m) · weekly ●●●○○○○○○○  47% ⟳ apr 23, 12:00pm (in 5d7h)
+context ●●●●●●○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○○
+▶▶ bypass permissions on (shift+tab to cycle)
+```
+
+switch between them any time:
+
+```bash
+lean-statusline config --preset compact
 ```
 
 ## what's on the line
@@ -72,15 +118,18 @@ percentages are color-graded: green under 50, orange 50–70, yellow 70–90, re
 
 ## configure
 
-config lives at `~/.claude/lean-statusline.json`. four ways to edit it:
+config lives at `~/.claude/lean-statusline.json`. five ways to edit it:
 
 ```bash
-lean-statusline config                  # interactive wizard
+lean-statusline config                  # p10k-style interactive wizard
+lean-statusline config --preset NAME    # apply a preset (see above)
 lean-statusline config --show           # print current (or defaults if no file)
 lean-statusline config --edit           # open in $EDITOR
 lean-statusline config --set show.bars=true separator=• icons=unicode
 lean-statusline config --reset
 ```
+
+the wizard is modeled on `p10k configure`: live preview at top, single-key answers, capability tests via visual confirmation (you tell it whether the glyphs rendered). no enter key required.
 
 full schema with defaults:
 
@@ -100,7 +149,7 @@ full schema with defaults:
 }
 ```
 
-**segments** — any subset of `model`, `ctx`, `dir`, `5h`, `7d`, `session`, `effort`. order matters.
+**segments** — any subset of: `model`, `ctx`, `dir`, `5h`, `7d`, `rate-5h-full`, `rate-7d-full`, `context-bar`, `bypass-banner`, `session`, `effort`. order matters. use `"\n"` to break to a new line (that's how the multi-line presets work).
 **show.bars** — render `●●●●○○○○○○` strips next to each percentage. off by default because the number is the signal.
 **icons** — `auto` (unicode on modern terminals, ascii elsewhere), `unicode` (force), or `ascii` (force).
 **thresholds** — where the color gradient kicks in.
