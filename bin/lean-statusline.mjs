@@ -133,7 +133,7 @@ async function renderFromStdin() {
 async function cmdInstall(args) {
     const flags = parseFlags(args, {
         '--force': false, '--no-patch': false, '--dir': null,
-        '--preset': null, '--wizard': false, '--via': null,
+        '--preset': null, '--wizard': false, '--no-wizard': false, '--via': null,
     });
     if (flags['--dir']) process.env.LEAN_STATUSLINE_CLAUDE_HOME = flags['--dir'];
     if (flags['--via'] && !['npx', 'global', 'node'].includes(flags['--via'])) {
@@ -188,12 +188,24 @@ async function cmdInstall(args) {
     if (s.ok) console.log(`smoke test passed: ${s.stdout.trim().slice(0, 60)}…`);
     else console.log(`smoke test FAILED: ${s.stderr || 'no output'}`);
 
-    // Offer wizard (if tty) or run it automatically when --wizard.
-    if (flags['--wizard']) {
+    // Launch the configure wizard automatically unless:
+    //   - user opted out with --no-wizard
+    //   - user already picked a preset via --preset NAME
+    //   - we're in a non-TTY (CI/scripted install — wizard would hang)
+    //   - --no-patch was set (user is doing a dry-install)
+    const shouldRunWizard = !flags['--no-wizard']
+        && !flags['--preset']
+        && !flags['--no-patch']
+        && process.stdin.isTTY
+        && process.stdout.isTTY;
+
+    if (shouldRunWizard) {
+        console.log('\nlaunching configure wizard (pass --no-wizard to skip)...\n');
+        await runWizard();
+    } else if (flags['--wizard']) {
+        // Explicit --wizard still works for anyone passing it.
         console.log('\nlaunching wizard...');
         await runWizard();
-    } else if (process.stdin.isTTY && !flags['--preset']) {
-        console.log('\ntip: run `lean-statusline config` to pick a preset and fine-tune (4 presets: minimal / compact / full / classic).');
     }
 
     console.log('\ndone. restart Claude Code to see the new statusline.');
@@ -370,11 +382,12 @@ function printHelp() {
 usage:
   lean-statusline                              render (stdin = Claude Code JSON)
   lean-statusline install [opts]               install + patch settings.json (idempotent)
+                                               launches configure wizard afterward in a tty
+    --no-wizard                                skip the wizard (scripted installs)
     --via npx|global|node                      force runtime (default: auto-detect)
     --no-patch                                 don't touch settings.json
     --dir PATH                                 override ~/.claude location
     --preset NAME                              apply preset (minimal|compact|full; classic → full)
-    --wizard                                   launch configure wizard after install
   lean-statusline uninstall
   lean-statusline config                       p10k-style interactive wizard
   lean-statusline config --show                print current config
