@@ -1,0 +1,12 @@
+{
+  "model": { "display_name": "Opus 4.7" },
+  "workspace": { "current_dir": "/tmp/project" },
+  "context_window": {
+    "context_window_size": 1000000,
+    "used_percentage": 22
+  },
+  "effortLevel": "high",
+  "skills": ["plan", "code"],
+  "subagents": [{ "name": "reviewer", "status": "running" }],
+  "terminal": { "columns": 132, "rows": 42 }
+}

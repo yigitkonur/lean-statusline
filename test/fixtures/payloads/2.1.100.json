@@ -1,0 +1,13 @@
+{
+  "model": { "display_name": "Sonnet" },
+  "cwd": "/tmp/project",
+  "context_window": {
+    "context_window_size": 200000,
+    "current_usage": {
+      "input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0
+    }
+  },
+  "cost": { "total_cost_usd": 0 }
+}
