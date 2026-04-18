@@ -14,7 +14,7 @@ import {
     backupSettings, patchSettings, unpatchSettings, smokeTest,
 } from '../lib/install.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
-import { PRESETS, PRESET_NAMES, applyPreset } from '../lib/presets.mjs';
+import { PRESETS, PRESET_NAMES, applyPreset, resolvePresetAlias } from '../lib/presets.mjs';
 import { runWizard } from '../lib/wizard.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -160,13 +160,15 @@ async function cmdInstall(args) {
 
     // Apply preset non-interactively, if requested.
     if (flags['--preset']) {
-        if (!PRESET_NAMES.includes(flags['--preset'])) {
+        const resolved = resolvePresetAlias(flags['--preset']);
+        if (!PRESET_NAMES.includes(resolved)) {
             console.error(`unknown preset: ${flags['--preset']}. known: ${PRESET_NAMES.join(', ')}`);
             process.exit(2);
         }
         const { config } = loadConfig();
-        saveConfig(applyPreset(config, flags['--preset']));
-        console.log(`applied preset: ${flags['--preset']}`);
+        saveConfig(applyPreset(config, resolved));
+        const note = resolved !== flags['--preset'] ? ` (${flags['--preset']} → ${resolved})` : '';
+        console.log(`applied preset: ${resolved}${note}`);
     }
 
     const command = pickCommand(BIN, flags['--via']);
@@ -224,13 +226,15 @@ async function cmdConfig(args) {
             for (const n of PRESET_NAMES) console.log(`  ${n.padEnd(10)} ${PRESETS[n].description}`);
             return;
         }
-        if (!PRESET_NAMES.includes(args[1])) {
+        const resolved = resolvePresetAlias(args[1]);
+        if (!PRESET_NAMES.includes(resolved)) {
             console.error(`unknown preset: ${args[1]}. known: ${PRESET_NAMES.join(', ')}`);
             process.exit(2);
         }
         const { config } = loadConfig();
-        saveConfig(applyPreset(config, args[1]));
-        console.log(`applied preset "${args[1]}" → ${CONFIG_PATH}`);
+        saveConfig(applyPreset(config, resolved));
+        const note = resolved !== args[1] ? ` (${args[1]} → ${resolved})` : '';
+        console.log(`applied preset "${resolved}"${note} → ${CONFIG_PATH}`);
         return;
     }
     if (args[0] === '--reset') {
@@ -369,7 +373,7 @@ usage:
     --via npx|global|node                      force runtime (default: auto-detect)
     --no-patch                                 don't touch settings.json
     --dir PATH                                 override ~/.claude location
-    --preset NAME                              apply preset (minimal|compact|full|classic)
+    --preset NAME                              apply preset (minimal|compact|full; classic → full)
     --wizard                                   launch configure wizard after install
   lean-statusline uninstall
   lean-statusline config                       p10k-style interactive wizard
