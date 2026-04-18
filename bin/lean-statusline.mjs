@@ -7,7 +7,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, saveConfig, applyEnvOverrides, validateConfig, DEFAULTS, KNOWN_SEGMENTS, CONFIG_PATH } from '../lib/config.mjs';
 import { makePalette, colorsEnabled, pickIcons } from '../lib/colors.mjs';
-import { renderLine } from '../lib/segments.mjs';
+import { renderLine, detectDangerousPerms, resolveEffortLevel, readContextPct } from '../lib/segments.mjs';
 import { getRateLimits } from '../lib/usage.mjs';
 import {
     claudeHome, settingsPath, detectExisting, findOnPath, pickCommand,
@@ -16,6 +16,7 @@ import {
 import { runDoctor } from '../lib/doctor.mjs';
 import { PRESETS, PRESET_NAMES, applyPreset, resolvePresetAlias } from '../lib/presets.mjs';
 import { runWizard } from '../lib/wizard.mjs';
+import { CLEAR, BOLD, DIM, RESET, C_CYAN, enterRawMode, readKey } from '../lib/tui.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -67,13 +68,8 @@ main().catch(err => {
 
 // ── interactive menu (shown when TTY + no subcommand) ──
 // Arrow-key navigation matches the wizard TUI. Number/letter shortcuts
-// are preserved as a fast path so muscle memory still works.
+// preserved as fast-path for muscle memory.
 async function interactiveMenu() {
-    const BOLD = '\x1b[1m', DIM = '\x1b[2m', RESET = '\x1b[0m';
-    const CYAN = '\x1b[36m';
-    const HIDE_CUR = '\x1b[?25l', SHOW_CUR = '\x1b[?25h';
-    const CLEAR = '\x1b[2J\x1b[3J\x1b[H';
-
     const options = [
         { key: '1', id: 'install',   label: 'install',   help: 'patch settings.json + smoke test' },
         { key: '2', id: 'doctor',    label: 'doctor',    help: 'verify install health' },
@@ -83,32 +79,21 @@ async function interactiveMenu() {
         { key: 'q', id: 'quit',      label: 'quit' },
     ];
 
-    const dispatch = async (id) => {
+    const dispatch = (id) => {
         if (id === 'install')   return cmdInstall([]);
         if (id === 'doctor')    return cmdDoctor();
         if (id === 'config')    return cmdConfig([]);
         if (id === 'uninstall') return cmdUninstall([]);
         if (id === 'help')      return printHelp();
-        return;  // quit
+        return;
     };
 
-    const stdin = process.stdin;
-    const wasRaw = stdin.isRaw;
-    stdin.setRawMode?.(true);
-    stdin.resume();
-    stdin.setEncoding('utf8');
-    process.stdout.write(HIDE_CUR);
-
-    const cleanup = () => {
-        stdin.setRawMode?.(wasRaw || false);
-        process.stdout.write(SHOW_CUR);
-    };
+    const cleanup = enterRawMode();
     process.on('exit', cleanup);
 
     let focus = 0;
     try {
         while (true) {
-            // Full redraw each frame.
             let out = CLEAR;
             out += `${BOLD}lean-statusline${RESET} ${DIM}v${PKG.version}${RESET}\n`;
             out += `${DIM}${'─'.repeat(60)}${RESET}\n`;
@@ -116,7 +101,7 @@ async function interactiveMenu() {
             for (let i = 0; i < options.length; i++) {
                 const o = options[i];
                 const sel = i === focus;
-                const arrow = sel ? `${CYAN}❯${RESET} ` : '  ';
+                const arrow = sel ? `${C_CYAN}❯${RESET} ` : '  ';
                 const keyTag = sel ? `${BOLD}(${o.key})${RESET}` : `${DIM}(${o.key})${RESET}`;
                 const label  = sel ? `${BOLD}${o.label.padEnd(10)}${RESET}` : `${o.label.padEnd(10)}`;
                 const help   = o.help ? `${DIM}${o.help}${RESET}` : '';
@@ -125,19 +110,8 @@ async function interactiveMenu() {
             out += `\n${DIM}↑↓ move · enter select · or press 1-4/h/q directly · esc/q to quit${RESET}`;
             process.stdout.write(out);
 
-            // Read one key (may be a multi-byte arrow sequence).
-            const chunk = await new Promise(res => stdin.once('data', res));
-            let key;
-            switch (chunk) {
-                case '\x03':   process.exit(130);  // Ctrl-C
-                case '\x1b[A': key = 'up';    break;
-                case '\x1b[B': key = 'down';  break;
-                case '\r':
-                case '\n':     key = 'enter'; break;
-                case '\x1b':   key = 'esc';   break;
-                default:       key = chunk.toLowerCase();
-            }
-
+            const key = await readKey();
+            if (key === 'ctrl-c') process.exit(130);
             if (key === 'up')    { focus = (focus - 1 + options.length) % options.length; continue; }
             if (key === 'down')  { focus = (focus + 1) % options.length; continue; }
             if (key === 'enter') {
@@ -150,21 +124,18 @@ async function interactiveMenu() {
                 process.stdout.write('\n');
                 return;
             }
-            // Fast-path: number/letter shortcut jumps straight to that option.
-            const hit = options.findIndex(o => o.key === key);
+            const hit = options.findIndex(o => o.key === (key || '').toLowerCase());
             if (hit >= 0) {
                 cleanup();
                 process.stdout.write('\n');
                 return dispatch(options[hit].id);
             }
-            // Any other key: ignore and redraw.
         }
     } finally {
         cleanup();
     }
 }
 
-// ── render ──────────────────────────────────────────────
 async function renderFromStdin() {
     let raw = '';
     for await (const chunk of process.stdin) raw += chunk;
@@ -179,7 +150,15 @@ async function renderFromStdin() {
     const palette = makePalette(colorsEnabled(undefined, cfg.colors));
     const icons = pickIcons(cfg.icons);
     const rateLimits = await getRateLimits(input);
-    const ctx = { input, cfg, palette, icons, rateLimits };
+    // Resolve per-process facts once so segments stay pure (ctx) → string.
+    // These used to be looked up inside each segment call, which spawned
+    // `ps` twice and re-read settings.json on every render.
+    const ctx = {
+        input, cfg, palette, icons, rateLimits,
+        dangerousPerms: detectDangerousPerms(),
+        effortLevel: resolveEffortLevel(),
+        contextPct: readContextPct(input),
+    };
     process.stdout.write(renderLine(ctx));
 }
 
