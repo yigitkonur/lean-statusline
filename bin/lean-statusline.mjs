@@ -147,7 +147,7 @@ async function renderFromStdin() {
     }
     if (!raw.trim()) { process.stdout.write('Claude'); return; }
 
-    const { config } = loadConfig();
+    const { config } = loadConfig(input);
     const cfg = applyEnvOverrides(config);
     const palette = makePalette(colorsEnabled(undefined, cfg.colors), cfg.palette);
     const icons = applyBarStyle(pickIcons(cfg.icons), cfg.barStyle);
@@ -276,6 +276,13 @@ async function cmdConfig(args) {
         console.log(JSON.stringify(config, null, 2));
         return;
     }
+    if (args[0] === '--init-project-file') {
+        const { config } = loadConfig();
+        const projectPath = join(process.cwd(), '.claude', 'lean-statusline.json');
+        saveConfig(config, projectPath);
+        console.log(`initialized project config → ${projectPath}`);
+        return;
+    }
     if (args[0] === '--preset') {
         if (!args[1]) {
             console.log('available presets:');
@@ -287,23 +294,24 @@ async function cmdConfig(args) {
             console.error(`unknown preset: ${args[1]}. known: ${PRESET_NAMES.join(', ')}`);
             process.exit(2);
         }
-        const { config } = loadConfig();
-        saveConfig(applyPreset(config, resolved));
+        const { config, path } = loadConfig();
+        saveConfig(applyPreset(config, resolved), path);
         const note = resolved !== args[1] ? ` (${args[1]} → ${resolved})` : '';
-        console.log(`applied preset "${resolved}"${note} → ${CONFIG_PATH}`);
+        console.log(`applied preset "${resolved}"${note} → ${path}`);
         return;
     }
     if (args[0] === '--reset') {
-        saveConfig(DEFAULTS);
-        console.log(`reset ${CONFIG_PATH} to defaults.`);
+        const { path } = loadConfig();
+        saveConfig(DEFAULTS, path);
+        console.log(`reset ${path} to defaults.`);
         return;
     }
     if (args[0] === '--edit') {
         const editor = process.env.EDITOR || process.env.VISUAL || 'vi';
-        const { config } = loadConfig();
-        if (!existsSync(CONFIG_PATH)) saveConfig(config);
+        const { config, path } = loadConfig();
+        if (!existsSync(path)) saveConfig(config, path);
         const { spawnSync } = await import('node:child_process');
-        spawnSync(editor, [CONFIG_PATH], { stdio: 'inherit' });
+        spawnSync(editor, [path], { stdio: 'inherit' });
         const after = loadConfig();
         const errs = validateConfig(after.config);
         if (errs.length) {
@@ -316,7 +324,7 @@ async function cmdConfig(args) {
     }
     if (args[0] === '--set') {
         if (args.length < 2) { console.error('usage: lean-statusline config --set key=value [key=value ...]'); process.exit(2); }
-        const { config } = loadConfig();
+        const { config, path } = loadConfig();
         for (const pair of args.slice(1)) {
             const eq = pair.indexOf('=');
             if (eq < 0) { console.error(`invalid: ${pair} (expected key=value)`); process.exit(2); }
@@ -330,8 +338,8 @@ async function cmdConfig(args) {
             for (const e of errs) console.error(`  - ${e}`);
             process.exit(1);
         }
-        saveConfig(config);
-        console.log(`wrote ${CONFIG_PATH}`);
+        saveConfig(config, path);
+        console.log(`wrote ${path}`);
         return;
     }
     // Interactive p10k-style wizard (default when `config` has no args)
