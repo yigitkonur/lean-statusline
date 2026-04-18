@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 — nothing yet.
 
+## [1.2.0] — 2026-04-18
+
+### Added
+- **Color palettes.** New `palette` option with 8 schemes: `default`, `nord`, `tokyo-night`, `dracula`, `gruvbox`, `catppuccin`, `solarized`, `monochrome`. Swaps the semantic hues (green/orange/yellow/red still mean low/warn/high/crit — only the RGB changes).
+- **Bar styles.** New `barStyle` option: `dots` (●○), `blocks` (█░), `braille` (⣿⣀), `ascii` (#-), `hearts` (♥♡), `arrows` (▰▱). Decoupled from the ascii/unicode icon fallback so every style works on modern terminals.
+- **Wizard gradient demo.** Appearance page renders a 5-bar gradient (10/30/55/75/95%) under the live preview so palette + barStyle cycles show every threshold color at once.
+- **Format options.** `modelFormat` (full/short/code), `dirStyle` (smart/basename/tilde/full), `branchStyle` (paren/bracket/brace/bare), `branchMaxLen`, `costPrecision` (0–4), `compactNumbers` (+1.2k), `hostnameStyle` (short/full), `spacing` (tight/normal/loose).
+- **`smart` dir style (new default).** Shows `~/dev/<project>` when it fits within `dirMaxLen` (default 30), otherwise collapses to the basename. The previous `basename` behavior is preserved via `dirStyle: 'basename'`.
+
+### Changed
+- **`ctx` inline bar scaled to 20 bubbles** (was 8). Context is the busiest signal on the line; a 20-bubble scale shows real movement per turn. Tunable via `ctxBarWidth`.
+- **`show.bars` now silences every bar-producing segment.** Previously it only affected the inline bubbles in `ctx`/`5h`/`7d`. Now it also strips the bar from `rate-5h-full`/`rate-7d-full` and hides the `context-bar` segment entirely.
+- **Wizard split into 6 pages** (was 5): preset · appearance + palette · formats + git · core segments · rich segments · thresholds + advanced.
+- **`ENUMS` single-source** shared between config validator and wizard so enum lists can't drift.
+
+### Not breaking
+All new fields have defaults, so existing saved configs keep working unchanged. The `ctx` bar widening only applies if a config doesn't set `ctxBarWidth`; pinned configs render exactly as before.
+
 ## [1.1.0] — 2026-04-18
 
 ### Changed
