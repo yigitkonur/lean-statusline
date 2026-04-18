@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 — nothing yet.
 
+## [1.1.0] — 2026-04-18
+
+### Changed
+- `DEFAULTS.icons` flipped `auto` → `unicode`. Modern terminals overwhelmingly render unicode glyphs correctly; defaulting to `unicode` avoids the legacy allowlist-based auto-detection silently downgrading to ascii when `TERM_PROGRAM` is absent (a common state inside the statusline subprocess). Users on legacy environments can pick `ascii` or `auto` via the wizard.
+- `pickIcons('auto')` rewritten as a **blocklist** instead of an allowlist: default to unicode unless there's concrete evidence the terminal can't render it. Specifically falls back to ascii when:
+  - `TERM` is `dumb`, `linux`, or empty
+  - session is SSH (`SSH_TTY` or `SSH_CONNECTION` set) **and** the locale isn't UTF-8
+  - legacy `LEAN_STATUSLINE_ASCII=1` env override is set
+- Previously the logic was "unicode only if `TERM_PROGRAM` matches a hand-maintained allowlist of ~10 terminals", which failed whenever `TERM_PROGRAM` was unset — notably inside Claude Code's render path in some configurations.
+
+### Not breaking
+Existing saved configs keep whatever `icons` value they have. `auto` still works; its meaning just got more generous. No config surface changes.
+
 ## [1.0.2] — 2026-04-18
 
 ### Changed
@@ -175,7 +188,8 @@ First public release on npm.
 - SSH segment for remote-session indication.
 - `install` / `uninstall` / `config` / `doctor` / `version` subcommands.
 
-[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/yigitkonur/lean-statusline/compare/v0.4.5...v1.0.0
