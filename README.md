@@ -177,6 +177,36 @@ set them in claude code's `settings.json` under `env`:
 }
 ```
 
+## ssh detection
+
+leads every preset. silent locally, surfaces a small host indicator when claude code is running over ssh so you can tell at a glance "this isn't my laptop."
+
+**classification rules:**
+
+| server IP range                      | kind     | label shown        | color    |
+|--------------------------------------|----------|--------------------|----------|
+| 192.168.0.0/16                       | lan      | `os.hostname()`    | cyan     |
+| 10.0.0.0/8                           | lan      | `os.hostname()`    | cyan     |
+| 172.16.0.0/12                        | lan      | `os.hostname()`    | cyan     |
+| 100.64.0.0/10 (CGNAT / tailscale)    | lan      | `os.hostname()`    | cyan     |
+| 169.254.0.0/16 (link-local)          | lan      | `os.hostname()`    | cyan     |
+| IPv6 loopback / link-local / ULA     | lan      | `os.hostname()`    | cyan     |
+| anything else (public internet)      | remote   | server IP          | magenta  |
+
+the idea: LAN is unsurprising (home, VPN, tailscale), so show the hostname (usually matches your ssh-config alias like `mac-mini`). A public IP is worth calling out louder — different color, shows the actual address so there's no ambiguity.
+
+**can it detect the exact alias you typed (`ssh mac-mini`)?** Not directly — openssh doesn't propagate the client-side alias to the server by default. Three workarounds, from cheapest to most precise:
+
+1. **os.hostname()** — the server's own hostname. Free, no setup. Usually matches what you typed (you named the box `mac-mini`, your ssh config points at it as `mac-mini`, the server introduces itself as `mac-mini`). This is the default.
+2. **`LEAN_STATUSLINE_SSH_HOST`** — set per-server in `~/.bashrc` / `~/.zshrc` on the remote. Whatever you put there is what gets shown.
+   ```bash
+   # on the remote box:
+   echo 'export LEAN_STATUSLINE_SSH_HOST=prod-eu-1' >> ~/.zshrc
+   ```
+3. **`SendEnv` via ssh config** — for dynamic per-invocation labels. Put `SendEnv LC_LEAN_HOST` in `~/.ssh/config`, `AcceptEnv LC_LEAN_HOST` in the server's `sshd_config`, then `LC_LEAN_HOST=mac-mini ssh mac-mini` propagates the label. More plumbing, rarely worth it.
+
+also: `LEAN_STATUSLINE_SSH_KIND=lan|remote` forces the color if autodetection is wrong for your network.
+
 ## icon rendering — what breaks, how to fix
 
 three unicode glyphs by default: `✎` (context), `⏱` (session), `⚡` (dangerous-perms). most modern terminals render them fine. the ones that don't get auto-downgraded.
