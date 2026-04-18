@@ -79,9 +79,13 @@ async function renderFromStdin() {
 async function cmdInstall(args) {
     const flags = parseFlags(args, {
         '--force': false, '--no-patch': false, '--dir': null,
-        '--preset': null, '--wizard': false,
+        '--preset': null, '--wizard': false, '--via': null,
     });
     if (flags['--dir']) process.env.LEAN_STATUSLINE_CLAUDE_HOME = flags['--dir'];
+    if (flags['--via'] && !['npx', 'global', 'node'].includes(flags['--via'])) {
+        console.error(`--via must be one of: npx, global, node. got: ${flags['--via']}`);
+        process.exit(2);
+    }
 
     const det = detectExisting();
     console.log(`claude home:   ${claudeHome()}`);
@@ -111,10 +115,14 @@ async function cmdInstall(args) {
         console.log(`applied preset: ${flags['--preset']}`);
     }
 
-    const command = pickCommand(BIN);
+    const command = pickCommand(BIN, flags['--via']);
+    const runtime = command.startsWith('npx ') ? 'npx (self-updating, ~100–300ms/render)'
+                   : command === 'lean-statusline' ? 'global bin (fast)'
+                   : 'direct node (from clone)';
     if (!flags['--no-patch']) {
         patchSettings(command);
         console.log(`patched settings.json#statusLine.command = ${command}`);
+        console.log(`runtime: ${runtime}`);
     } else {
         console.log('skipped settings.json patch (--no-patch)');
     }
@@ -261,8 +269,8 @@ function printHelp() {
 
 usage:
   lean-statusline                              render (stdin = Claude Code JSON)
-  lean-statusline install [opts]               install + patch settings.json
-    --force                                    re-patch even if already installed
+  lean-statusline install [opts]               install + patch settings.json (idempotent)
+    --via npx|global|node                      force runtime (default: auto-detect)
     --no-patch                                 don't touch settings.json
     --dir PATH                                 override ~/.claude location
     --preset NAME                              apply preset (minimal|compact|full|classic)
