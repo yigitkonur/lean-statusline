@@ -1,7 +1,7 @@
 {
   "name": "lean-statusline",
-  "version": "0.1.0",
-  "description": "one-line statusline for claude code — context %, git branch, 5h/7d rate limits. node-only, zero deps.",
+  "version": "0.2.0",
+  "description": "statusline for claude code — minimal/compact/full/classic presets, p10k-style configure wizard, node-only, zero deps.",
   "type": "module",
   "bin": {
     "lean-statusline": "./bin/lean-statusline.mjs"
@@ -13,9 +13,13 @@
   "files": [
     "bin/",
     "lib/",
+    "assets/",
     "README.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "node --test test/"
   },
@@ -26,7 +30,9 @@
     "claude-code",
     "claude",
     "statusline",
-    "cli"
+    "prompt",
+    "cli",
+    "p10k"
   ],
   "author": "Yigit Konur",
   "license": "MIT",
