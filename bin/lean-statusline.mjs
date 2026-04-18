@@ -270,9 +270,10 @@ async function cmdUninstall(_args) {
 // ── config ──────────────────────────────────────────────
 async function cmdConfig(args) {
     if (args[0] === '--show') {
-        const { config, path, warning } = loadConfig();
+        const { config, path, warning, warnings } = loadConfig();
         console.log(`# ${path}${existsSync(path) ? '' : '  (not yet created — showing defaults)'}`);
         if (warning) console.log(`# WARNING: ${warning}`);
+        for (const message of warnings) console.log(`# WARNING: ${message}`);
         console.log(JSON.stringify(config, null, 2));
         return;
     }
@@ -319,6 +320,8 @@ async function cmdConfig(args) {
             for (const e of errs) console.error(`  - ${e}`);
             process.exit(1);
         }
+        saveConfig(after.config, after.path);
+        for (const message of after.warnings) console.log(`# WARNING: ${message}`);
         console.log('config ok.');
         return;
     }
@@ -347,11 +350,14 @@ async function cmdConfig(args) {
 }
 
 function applySet(cfg, key, val) {
-    // Support dotted keys: show.branch, thresholds.warn, segments (comma list).
+    // Support dotted keys: show.branch, thresholds.warn_at, segments (comma list).
     if (key === 'segments') { cfg.segments = val.split(',').map(s => s.trim()).filter(Boolean); return; }
     if (key === 'icons') { cfg.icons = val; return; }
     if (key === 'colors') { cfg.colors = val === 'true' || val === '1'; return; }
     if (key === 'separator') { cfg.separator = val; return; }
+    if (key === 'thresholds.high') key = 'thresholds.warn_at';
+    if (key === 'thresholds.crit') key = 'thresholds.critical_at';
+    if (key === 'thresholds.warn') key = 'thresholds.warn_at';
     const parts = key.split('.');
     let cur = cfg;
     for (let i = 0; i < parts.length - 1; i++) {
