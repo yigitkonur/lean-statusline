@@ -1,6 +1,6 @@
 {
   "name": "lean-statusline",
-  "version": "0.4.5",
+  "version": "1.0.0",
   "description": "statusline for claude code — minimal/compact/full/classic presets, p10k-style configure wizard, node-only, zero deps.",
   "type": "module",
   "bin": {
@@ -21,7 +21,10 @@
     "access": "public"
   },
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@lydell/node-pty": "^1.1.0"
   },
   "engines": {
     "node": ">=20.0.0"

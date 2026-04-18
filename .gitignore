@@ -1,3 +1,5 @@
 .DS_Store
 *.bak.*
 /tmp/
+/node_modules/
+/package-lock.json

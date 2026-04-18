@@ -356,8 +356,13 @@ async function cmdSelfupdate(args) {
     const target = flags['--version'] || 'latest';
 
     const { spawnSync } = await import('node:child_process');
+    // `npm` is a .cmd shim on Windows; without shell:true spawnSync raises
+    // ENOENT. Posix doesn't need the shell and skipping it is faster.
+    const useShell = process.platform === 'win32';
     console.log('checking registry for latest version...');
-    const viewResult = spawnSync('npm', ['view', `lean-statusline@${target}`, 'version'], { encoding: 'utf8' });
+    const viewResult = spawnSync('npm', ['view', `lean-statusline@${target}`, 'version'], {
+        encoding: 'utf8', shell: useShell,
+    });
     if (viewResult.status !== 0) {
         console.error('could not reach npm registry.');
         console.error(viewResult.stderr || 'no stderr');
@@ -377,7 +382,7 @@ async function cmdSelfupdate(args) {
 
     console.log(`upgrading ${PKG.version} → ${registryVersion}...`);
     const install = spawnSync('npm', ['install', '-g', `lean-statusline@${target}`], {
-        encoding: 'utf8', stdio: 'inherit',
+        encoding: 'utf8', stdio: 'inherit', shell: useShell,
     });
     if (install.status !== 0) {
         console.error('npm install -g failed.');

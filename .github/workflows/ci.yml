@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows-latest excluded intentionally — ConPTY + node-pty has an
+        # open crash bug (microsoft/node-pty#827, 2025-12) that makes the
+        # interactive TUI suite flaky in CI. Non-interactive render tests
+        # would pass on Windows, but we prefer a single uniform matrix.
+        os: [ubuntu-latest, macos-latest]
+        node: [20, 22, 24]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm ci
+      - run: npm test
+
+  windows-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      # Non-PTY smoke: the render-path tests don't need raw mode. Interactive
+      # suite (test/wizard.test.mjs) self-skips on win32.
+      - run: node --test test/render.test.mjs
+        shell: bash
