@@ -6,7 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, saveConfig, applyEnvOverrides, validateConfig, DEFAULTS, KNOWN_SEGMENTS, CONFIG_PATH } from '../lib/config.mjs';
-import { makePalette, colorsEnabled, pickIcons } from '../lib/colors.mjs';
+import { makePalette, colorsEnabled, pickIcons, applyBarStyle } from '../lib/colors.mjs';
 import { renderLine, detectDangerousPerms, resolveEffortLevel, readContextPct } from '../lib/segments.mjs';
 import { getRateLimits } from '../lib/usage.mjs';
 import {
@@ -147,8 +147,8 @@ async function renderFromStdin() {
 
     const { config } = loadConfig();
     const cfg = applyEnvOverrides(config);
-    const palette = makePalette(colorsEnabled(undefined, cfg.colors));
-    const icons = pickIcons(cfg.icons);
+    const palette = makePalette(colorsEnabled(undefined, cfg.colors), cfg.palette);
+    const icons = applyBarStyle(pickIcons(cfg.icons), cfg.barStyle);
     const rateLimits = await getRateLimits(input);
     // Resolve per-process facts once so segments stay pure (ctx) → string.
     // These used to be looked up inside each segment call, which spawned
