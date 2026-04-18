@@ -10,6 +10,7 @@ import { makePalette, colorsEnabled, pickIcons, applyBarStyle } from '../lib/col
 import { renderLine, detectDangerousPerms, resolveEffortLevel, readContextPct } from '../lib/segments.mjs';
 import { probe } from '../lib/probe.mjs';
 import { loadState, saveState, tickState } from '../lib/state.mjs';
+import { emptyTranscriptState, reduceTranscript } from '../lib/transcript.mjs';
 import { getRateLimits } from '../lib/usage.mjs';
 import {
     claudeHome, settingsPath, detectExisting, findOnPath, pickCommand,
@@ -153,11 +154,23 @@ async function renderFromStdin() {
     const icons = applyBarStyle(pickIcons(cfg.icons), cfg.barStyle);
     const rateLimits = await getRateLimits(input);
     const state = loadState(input.session_id);
+    const transcriptCursor = state.lastSeen?.transcript ?? { offset: 0, state: emptyTranscriptState() };
+    let transcript = emptyTranscriptState();
+    if (cfg.transcript?.enabled !== false) {
+        const reduced = await reduceTranscript(
+            probe('transcript_path', input),
+            transcriptCursor.offset,
+            transcriptCursor.state,
+            cfg.transcript?.maxFirstReadMs ?? 500,
+        );
+        transcript = reduced.state;
+        state.lastSeen.transcript = reduced;
+    }
     // Resolve per-process facts once so segments stay pure (ctx) → string.
     // These used to be looked up inside each segment call, which spawned
     // `ps` twice and re-read settings.json on every render.
     const ctx = {
-        input, cfg, palette, icons, rateLimits, state,
+        input, cfg, palette, icons, rateLimits, state, transcript,
         probe: (path, options) => probe(path, input, options),
         dangerousPerms: detectDangerousPerms(),
         effortLevel: resolveEffortLevel(input),
