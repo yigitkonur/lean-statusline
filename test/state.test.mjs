@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,9 +37,17 @@ function withConfigDir(fn) {
     const cfgPath = join(cfgDir, 'config.json');
     writeFileSync(cfgPath, JSON.stringify(DEFAULT_CFG));
     try {
-        return fn(cfgPath);
-    } finally {
+        const result = fn(cfgPath);
+        if (result && typeof result.then === 'function') {
+            return result.finally(() => {
+                rmSync(cfgDir, { recursive: true, force: true });
+            });
+        }
         rmSync(cfgDir, { recursive: true, force: true });
+        return result;
+    } catch (error) {
+        rmSync(cfgDir, { recursive: true, force: true });
+        throw error;
     }
 }
 
@@ -190,6 +198,39 @@ test('state integration: parallel renders with the same session_id do not throw'
         assert.equal(a.code, 0, a.stderr);
         assert.equal(b.code, 0, b.stderr);
         assert.equal(listStateFiles({ dir }).length, 1);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+test('state test helper: withConfigDir keeps temp configs alive for async callbacks', async () => {
+    let sawConfig = false;
+    await withConfigDir(async (cfgPath) => {
+        await new Promise(resolvePromise => setTimeout(resolvePromise, 10));
+        sawConfig = existsSync(cfgPath);
+    });
+    assert.equal(sawConfig, true);
+});
+
+test('state: parseable malformed files are normalized before use', () => {
+    const dir = makeStateDir();
+    try {
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(statePath('demo', { dir }), JSON.stringify({
+            schemaVersion: 1,
+            lastSeen: null,
+            counters: {
+                totalRenders: 'oops',
+                firstSeenAt: null,
+                messagesSinceLastChange: null,
+            },
+        }));
+        const state = loadState('demo', { dir });
+        assert.deepEqual(state.lastSeen, {});
+        assert.deepEqual(state.counters.messagesSinceLastChange, {});
+        assert.equal(state.counters.totalRenders, 0);
+        assert.equal(Number.isFinite(state.counters.firstSeenAt), true);
+        assert.equal(Number.isFinite(state.counters.lastRenderAt), true);
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

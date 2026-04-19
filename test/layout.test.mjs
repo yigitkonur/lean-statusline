@@ -54,6 +54,7 @@ function makeCtx(overrides = {}) {
 test('layout: resolveWidth prefers payload, then env, then default tiering', () => {
     assert.equal(resolveWidth(makeCtx()), 120);
     assert.equal(resolveWidth(makeCtx({ input: {} }), { env: { COLUMNS: '88' } }), 88);
+    assert.equal(resolveWidth(makeCtx({ input: {} }), { env: { LINES: '42' } }), 100);
     assert.equal(resolveWidth(makeCtx({ input: {} }), { env: {} }), 100);
     assert.equal(tierFor(160), 'xl');
     assert.equal(tierFor(110), 'l');
