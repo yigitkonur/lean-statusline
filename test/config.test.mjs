@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULTS, loadConfig, resolveConfigPath } from '../lib/config.mjs';
+import { PRESETS } from '../lib/presets.mjs';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const BIN = resolve(__dirname, '..', 'bin', 'lean-statusline.mjs');
@@ -141,6 +142,35 @@ test('cli: config --init-project-file seeds a project config from the active res
         assert.deepEqual(seeded.segments, ['model', 'ctx']);
         assert.equal(seeded.separator, '|');
         assert.match(result.stdout, /initialized project config/i);
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test('cli: install --preset writes the resolved project config, not the user default path', () => {
+    const { root, homeDir, projectDir } = makeSandbox();
+    try {
+        const projectPath = join(projectDir, '.claude', 'lean-statusline.json');
+        const userPath = join(homeDir, '.claude', 'lean-statusline.json');
+        const claudeHome = join(root, 'claude-home');
+        writeJson(projectPath, { preset: 'minimal', segments: ['model'], separator: '/' });
+
+        const result = spawnSync(process.execPath, [BIN, 'install', '--preset', 'full', '--no-patch', '--no-wizard'], {
+            cwd: projectDir,
+            env: {
+                ...process.env,
+                HOME: homeDir,
+                USERPROFILE: homeDir,
+                LEAN_STATUSLINE_CLAUDE_HOME: claudeHome,
+            },
+            encoding: 'utf8',
+            timeout: 5000,
+        });
+
+        assert.equal(result.status, 0, result.stderr);
+        const projectCfg = JSON.parse(readFileSync(projectPath, 'utf8'));
+        assert.deepEqual(projectCfg.segments, PRESETS.full.config.segments);
+        assert.equal(existsSync(userPath), false);
     } finally {
         rmSync(root, { recursive: true, force: true });
     }

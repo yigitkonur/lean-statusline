@@ -224,8 +224,8 @@ async function cmdInstall(args) {
             console.error(`unknown preset: ${flags['--preset']}. known: ${PRESET_NAMES.join(', ')}`);
             process.exit(2);
         }
-        const { config } = loadConfig();
-        saveConfig(applyPreset(config, resolved));
+        const { config, path } = loadConfig();
+        saveConfig(applyPreset(config, resolved), path);
         const note = resolved !== flags['--preset'] ? ` (${flags['--preset']} → ${resolved})` : '';
         console.log(`applied preset: ${resolved}${note}`);
     }

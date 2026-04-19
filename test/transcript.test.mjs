@@ -1,13 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, appendFileSync, rmSync } from 'node:fs';
+import { appendFileSync, chmodSync, closeSync, ftruncateSync, mkdtempSync, openSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { PRESETS } from '../lib/presets.mjs';
 import { loadState } from '../lib/state.mjs';
-import { reduceTranscript } from '../lib/transcript.mjs';
+import { emptyTranscriptState, reduceTranscript } from '../lib/transcript.mjs';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const BIN = resolve(__dirname, '..', 'bin', 'lean-statusline.mjs');
@@ -56,6 +56,37 @@ test('transcript defaults: full preset enables transcript reduction', () => {
     assert.equal(PRESETS.full.config.transcript?.enabled, true);
     assert.equal(PRESETS.compact.config.transcript?.enabled ?? false, false);
     assert.equal(PRESETS.minimal.config.transcript?.enabled ?? false, false);
+});
+
+test('transcript reducer: oversized sparse files do not trigger unbounded allocations', async () => {
+    const { root, transcriptPath } = makeSandbox();
+    try {
+        const fd = openSync(transcriptPath, 'w');
+        ftruncateSync(fd, 3 * 1024 * 1024 * 1024);
+        closeSync(fd);
+
+        const reduced = await reduceTranscript(transcriptPath, 0, null, 1);
+        assert.equal(reduced.offset, 0);
+        assert.deepEqual(reduced.state, emptyTranscriptState());
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test('transcript reducer: unreadable files fail closed without throwing', {
+    skip: process.platform === 'win32' ? 'POSIX permissions required' : false,
+}, async () => {
+    const { root, transcriptPath } = makeSandbox();
+    try {
+        writeLines(transcriptPath, [line({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'task-1', name: 'Task' }] } })]);
+        chmodSync(transcriptPath, 0o000);
+        const reduced = await reduceTranscript(transcriptPath, 0, null, 50);
+        assert.equal(reduced.offset, 0);
+        assert.deepEqual(reduced.state, emptyTranscriptState());
+    } finally {
+        try { chmodSync(transcriptPath, 0o600); } catch {}
+        rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test('transcript reducer: fresh read, append-only resume, malformed lines, and rotation all work', async () => {

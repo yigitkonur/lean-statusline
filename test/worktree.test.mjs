@@ -84,6 +84,16 @@ test('worktree auto-elevation: workspace.git_worktree is enough to render', () =
     assert.match(stripAnsi(result.stdout), /^Opus 4\.7 · 🌿 wt-login · repo$/m);
 });
 
+test('worktree auto-elevation: empty worktree.name falls back to workspace.git_worktree', () => {
+    const result = render({
+        ...baseInput,
+        worktree: { name: '' },
+        workspace: { ...baseInput.workspace, git_worktree: 'wt-login' },
+    }, worktreeCfg());
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(stripAnsi(result.stdout), /^Opus 4\.7 · 🌿 wt-login · repo$/m);
+});
+
 test('worktree auto-elevation: explicit worktree segment does not duplicate', () => {
     const result = render({
         ...baseInput,
