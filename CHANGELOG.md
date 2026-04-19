@@ -6,7 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-— nothing yet.
+### Added
+- **Defensive render-state plumbing.** New `probe`, `state`, and `transcript` internals let renders read unstable payload shapes safely, persist per-session state, and resume transcript reducers incrementally between renders.
+- **Project-aware configuration + new feature blocks.** Added project-local config resolution (`lean-statusline config --init-project-file`), `conditionals`, `pace`, `subagents`, `transcript`, and `layout` config blocks, plus `doctor --clean` for pruning stale session-state files.
+- **New statusline signals.** Added the `subagents` segment, transcript-backed subagent fallback, project-dir drift crumbs, worktree auto-elevation, and width-aware layout dropping for narrow terminals.
+
+### Changed
+- **Rate-limit rendering is more informative.** `5h`, `7d`, `rate-5h-full`, and `rate-7d-full` now compute pace deltas, collapse countdowns near reset, and use the new `warn_at` / `critical_at` threshold names while still accepting legacy aliases with warnings.
+- **Noise filtering moved into conditionals.** Default agent names, zero-cost/zero-line values, and other low-signal cases are now suppressed centrally instead of inside individual segments.
+- **Compact/full presets surface more session context.** Worktree/subagent signals can render automatically, transcript reduction is enabled only where it pays off, and the layout ladder trims tagged fragments before lines overflow.
 
 ## [1.2.0] — 2026-04-18
 
@@ -206,7 +214,8 @@ First public release on npm.
 - SSH segment for remote-session indication.
 - `install` / `uninstall` / `config` / `doctor` / `version` subcommands.
 
-[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.0...v1.0.1
