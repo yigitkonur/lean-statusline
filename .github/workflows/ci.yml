@@ -22,7 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-      - run: npm ci
+      - run: npm install
       - run: npm test
 
   windows-smoke:
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm ci
+      - run: npm install
       # Non-PTY smoke: the render-path tests don't need raw mode. Interactive
       # suite (test/wizard.test.mjs) self-skips on win32.
       - run: node --test test/render.test.mjs
