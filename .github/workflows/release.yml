@@ -1,18 +1,28 @@
 name: release
 
-# Tag-triggered publish. Flow:
-#   1. bump version in package.json + add CHANGELOG entry
-#   2. commit: `chore(release): X.Y.Z`
-#   3. tag:   `git tag -a vX.Y.Z -m "…" && git push --follow-tags`
-#   4. CI tests → npm publish → GitHub release (auto-generated notes)
+# Push-to-main auto-release flow:
+#   1. Push any commit to `main`.
+#   2. Tests run (non-PTY subset — wizard.test.mjs needs @lydell/node-pty
+#      devDep which isn't portable in all CI images).
+#   3. Bump version based on the latest commit's conventional-commit prefix:
+#      - `feat…!:` or body contains `BREAKING CHANGE`  → major
+#      - `feat(…):` or `feat:`                          → minor
+#      - anything else (fix/chore/docs/refactor/…)      → patch
+#   4. Commit `chore(release): X.Y.Z`, tag `vX.Y.Z`, push back to main.
+#   5. Publish to npm using NPM_TOKEN.
+#   6. Create a GitHub Release with auto-generated notes.
 #
-# Manual dispatch (`workflow_dispatch`) lets you re-run a publish if the
-# tag push failed to trigger for any reason — pick the ref in the UI.
+# Loop prevention: the auto-release commit itself starts with
+# `chore(release):` — the job's `if:` filter skips on that prefix so the
+# workflow doesn't trigger on its own push. Default `GITHUB_TOKEN` also
+# prevents recursive workflow dispatch, so this is belt-and-suspenders.
+#
+# Manual dispatch (`workflow_dispatch`) lets you re-publish the current
+# `main` head without a new commit — use `dry_run=true` to sanity-check auth.
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches: [main]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -20,61 +30,67 @@ on:
         required: false
         default: 'false'
 
+# Serialize release runs so two rapid pushes to main can't race on the tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
+    # Loop prevention: skip when the pushed commit is the bot's own release bump.
+    if: |
+      github.event_name != 'push' ||
+      !startsWith(github.event.head_commit.message, 'chore(release):')
     permissions:
-      contents: write  # for creating the GitHub Release
+      contents: write  # push bump commit + tag, create GitHub Release
       id-token: write  # reserved for future `--provenance` upgrade
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # full history so release notes can diff vs prior tag
+          fetch-depth: 0       # full history so release notes can diff vs prior tag
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          # `registry-url` is intentionally NOT set here: setup-node would
-          # write a placeholder `.npmrc` with `${NODE_AUTH_TOKEN}` that our
-          # granular access token doesn't authenticate against (1.3.1 CI run
-          # 404'd on PUT). We write `.npmrc` directly below — the exact
-          # format that works for `npm publish` locally.
 
       - name: Install dependencies
         run: npm install
 
-      - name: Debug auth (mask-safe)
-        run: |
-          echo "node:     $(node --version)"
-          echo "npm:      $(npm --version)"
-          echo "registry: $(npm config get registry)"
-          echo "HOME:     $HOME"
-          echo "token length: ${#NPM_TOKEN}"
-          env | grep -iE '^(npm_|NPM_|NODE_)' | sort | sed 's/=.*/=<REDACTED>/'
-          # Use token directly via CLI flag (the only path that survived our
-          # iteration — .npmrc writes caused 401s in CI for this granular token).
-          npm whoami --registry=https://registry.npmjs.org/ "--//registry.npmjs.org/:_authToken=$NPM_TOKEN" 2>&1 | head -3
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
       - name: Run tests (non-PTY subset)
-        # test/wizard.test.mjs requires @lydell/node-pty which is a devDep;
-        # if its install fails on the CI runner we don't want the release
-        # to block. The render/config/pace tests are what actually guard
-        # user-visible behavior.
-        run: |
-          node --test $(ls test/*.test.mjs | grep -v 'wizard.test.mjs')
+        run: node --test $(ls test/*.test.mjs | grep -v 'wizard.test.mjs')
 
-      - name: Verify tag matches package.json version
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Determine bump type from commit subject
+        id: bump
+        if: github.event_name == 'push'
         run: |
-          TAG="${GITHUB_REF#refs/tags/v}"
-          PKG=$(node -p "require('./package.json').version")
-          if [ "$TAG" != "$PKG" ]; then
-            echo "::error::tag v$TAG does not match package.json version $PKG"
-            exit 1
+          MSG="$(git log -1 --pretty=%s%n%b)"
+          SUBJECT="$(echo "$MSG" | head -1)"
+          if echo "$MSG" | grep -Eq 'BREAKING[ _]?CHANGE|^[a-z]+(\([^)]+\))?!:'; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif echo "$SUBJECT" | grep -Eq '^feat(\([^)]+\))?:'; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=patch" >> "$GITHUB_OUTPUT"
           fi
-          echo "tag/pkg match: $TAG"
+          echo "bump from subject '$SUBJECT'"
+
+      - name: Bump, commit, tag, push
+        id: version
+        if: github.event_name == 'push'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          NEW="$(npm version ${{ steps.bump.outputs.type }} --no-git-tag-version)"
+          # `npm version` prefixes with `v` (e.g. `v1.3.3`). Strip for the commit body.
+          VERSION="${NEW#v}"
+          git add package.json
+          git commit -m "chore(release): ${VERSION}"
+          git tag -a "$NEW" -m "release ${NEW}"
+          git push origin main --follow-tags
+          echo "tag=$NEW"          >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION"  >> "$GITHUB_OUTPUT"
 
       - name: Publish (dry run)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true'
@@ -84,18 +100,14 @@ jobs:
 
       - name: Publish to npm
         if: github.event_name == 'push' || github.event.inputs.dry_run != 'true'
-        # CLI flag instead of `.npmrc` file: both forms are documented as
-        # equivalent, but with this specific granular token the file-based
-        # path kept returning 401 in CI while the CLI flag works. npm masks
-        # the token in logs automatically (secret masking + `***` pattern).
         run: npm publish --access public "--//registry.npmjs.org/:_authToken=$NPM_TOKEN"
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          name: ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
+          name: ${{ steps.version.outputs.tag }}
+          tag_name: ${{ steps.version.outputs.tag }}
