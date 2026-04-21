@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-04-21
+
+### Added
+- **Silent auto-update on render.** The render path now polls npm for a newer `lean-statusline` (same cache/TTL model as the CC update check) and, when one is available, detaches `npm install -g lean-statusline@latest` in the background — throttled to once per 24h via a lock file. Next render picks up the new code. Opt out with `autoUpdate: false` in config, or set `LEAN_STATUSLINE_NO_AUTOUPDATE=1` for a one-shot override. Silently no-ops when the user lacks write access to the global prefix.
+- **Install-time auto-upgrade.** `lean-statusline install` now runs `selfupdate` first when a newer version is on npm, so re-running install always lands the latest code.
+- **Tag-triggered release workflow.** New `.github/workflows/release.yml` — push `vX.Y.Z` and CI runs tests, verifies `tag == package.json#version`, publishes to npm using `NPM_TOKEN`, and creates a GitHub release with auto-generated notes. Supports `workflow_dispatch` with a `dry_run` toggle.
+
+### Removed
+- **`bypass-banner` removed from `full` preset defaults.** Claude Code 2.x renders its own `▶▶ bypass permissions on · N shells` chrome directly below the statusline, so our duplicate banner was redundant noise. The segment definition stays — users on older CC versions can opt it back in by editing `~/.claude/lean-statusline.json#segments`.
+
 ## [1.3.0] — 2026-04-21
 
 ### Added
@@ -229,7 +239,8 @@ First public release on npm.
 - SSH segment for remote-session indication.
 - `install` / `uninstall` / `config` / `doctor` / `version` subcommands.
 
-[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/yigitkonur/lean-statusline/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.2...v1.1.0

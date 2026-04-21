@@ -6,7 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, saveConfig, applyEnvOverrides, validateConfig, DEFAULTS, KNOWN_SEGMENTS, CONFIG_PATH } from '../lib/config.mjs';
-import { checkCcUpdate } from '../lib/version-check.mjs';
+import { checkCcUpdate, checkLeanUpdate, spawnAutoInstall } from '../lib/version-check.mjs';
 import { makePalette, colorsEnabled, pickIcons, applyBarStyle } from '../lib/colors.mjs';
 import { applyLayout, resolveWidth } from '../lib/layout.mjs';
 import { renderLine, detectDangerousPerms, resolveEffortLevel, readContextPct } from '../lib/segments.mjs';
@@ -187,6 +187,14 @@ async function renderFromStdin() {
         // users can see the "vs est:" format without waiting for real burn.
         pacePreview: process.env.LEAN_STATUSLINE_PACE_PREVIEW === '1',
     };
+    // Opt-out silent auto-update. Default ON: `cfg.autoUpdate !== false`.
+    // Same env gates as the CC update check (LEAN_STATUSLINE_NO_NETWORK and
+    // the extra LEAN_STATUSLINE_NO_AUTOUPDATE for finer control). 24h lock
+    // prevents retry loops if the install itself fails (sudo install etc).
+    if (cfg.autoUpdate !== false) {
+        const newer = checkLeanUpdate(PKG.version);
+        if (newer) spawnAutoInstall(newer);
+    }
     const rendered = renderLine({ ...ctx, layoutTagged: true });
     process.stdout.write(applyLayout(ctx, rendered, resolveWidth(ctx)));
     tickState(state, {
@@ -208,6 +216,20 @@ async function cmdInstall(args) {
     if (flags['--via'] && !['npx', 'global', 'node'].includes(flags['--via'])) {
         console.error(`--via must be one of: npx, global, node. got: ${flags['--via']}`);
         process.exit(2);
+    }
+
+    // Auto-run selfupdate at install time if a newer version is on npm.
+    // Saves users the "install, immediately see update avail notice, run
+    // selfupdate, re-install" shuffle. Respects the same NO_AUTOUPDATE /
+    // NO_NETWORK env gates as the render-path auto-install.
+    if (!process.env.LEAN_STATUSLINE_NO_AUTOUPDATE && !process.env.LEAN_STATUSLINE_NO_NETWORK) {
+        const newer = checkLeanUpdate(PKG.version);
+        if (newer) {
+            console.log(`newer version on npm: ${newer} (current ${PKG.version}). upgrading before install...`);
+            await cmdSelfupdate([]);
+            console.log(`upgrade done — re-exec with the new binary to complete install.`);
+            return;
+        }
     }
 
     const det = detectExisting();
