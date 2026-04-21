@@ -6,6 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, saveConfig, applyEnvOverrides, validateConfig, DEFAULTS, KNOWN_SEGMENTS, CONFIG_PATH } from '../lib/config.mjs';
+import { checkCcUpdate } from '../lib/version-check.mjs';
 import { makePalette, colorsEnabled, pickIcons, applyBarStyle } from '../lib/colors.mjs';
 import { applyLayout, resolveWidth } from '../lib/layout.mjs';
 import { renderLine, detectDangerousPerms, resolveEffortLevel, readContextPct } from '../lib/segments.mjs';
@@ -176,6 +177,10 @@ async function renderFromStdin() {
         dangerousPerms: detectDangerousPerms(),
         effortLevel: resolveEffortLevel(input),
         contextPct: readContextPct(input),
+        // null when up-to-date or unknown; a version string when a newer CC is on npm.
+        // checkCcUpdate is synchronous — reads a cache file, spawns a background fetch
+        // when stale. Never blocks the render path.
+        ccUpdate: cfg.show?.ccUpdate !== false ? checkCcUpdate(probe('version', input)) : null,
     };
     const rendered = renderLine({ ...ctx, layoutTagged: true });
     process.stdout.write(applyLayout(ctx, rendered, resolveWidth(ctx)));
@@ -235,7 +240,8 @@ async function cmdInstall(args) {
                    : command === 'lean-statusline' ? 'global bin (fast)'
                    : 'direct node (from clone)';
     if (!flags['--no-patch']) {
-        patchSettings(command);
+        const { config: installedCfg } = loadConfig();
+        patchSettings(command, { refreshInterval: installedCfg.refreshInterval ?? 0 });
         console.log(`patched settings.json#statusLine.command = ${command}`);
         console.log(`runtime: ${runtime}`);
     } else {

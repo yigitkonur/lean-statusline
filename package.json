@@ -4,7 +4,8 @@
   "description": "statusline for claude code — minimal/compact/full/classic presets, p10k-style configure wizard, node-only, zero deps.",
   "type": "module",
   "bin": {
-    "lean-statusline": "./bin/lean-statusline.mjs"
+    "lean-statusline": "./bin/lean-statusline.mjs",
+    "lean-statusline-subagents": "./bin/lean-statusline-subagents.mjs"
   },
   "main": "./bin/lean-statusline.mjs",
   "exports": {
