@@ -181,6 +181,10 @@ async function renderFromStdin() {
         // checkCcUpdate is synchronous — reads a cache file, spawns a background fetch
         // when stale. Never blocks the render path.
         ccUpdate: cfg.show?.ccUpdate !== false ? checkCcUpdate(probe('version', input)) : null,
+        // LEAN_STATUSLINE_PACE_PREVIEW=1 forces the 5h ETA + pace-explainer to
+        // render regardless of real urgency — used by the configure wizard so
+        // users can see the "vs est:" format without waiting for real burn.
+        pacePreview: process.env.LEAN_STATUSLINE_PACE_PREVIEW === '1',
     };
     const rendered = renderLine({ ...ctx, layoutTagged: true });
     process.stdout.write(applyLayout(ctx, rendered, resolveWidth(ctx)));
