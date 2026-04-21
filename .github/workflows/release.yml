@@ -34,8 +34,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: 'https://registry.npmjs.org'
-          always-auth: true
+          # `registry-url` is intentionally NOT set here: setup-node would
+          # write a placeholder `.npmrc` with `${NODE_AUTH_TOKEN}` that our
+          # granular access token doesn't authenticate against (1.3.1 CI run
+          # 404'd on PUT). We write `.npmrc` directly below — the exact
+          # format that works for `npm publish` locally.
+
+      - name: Write .npmrc directly from secret
+        run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Install dependencies
         run: npm install
@@ -62,14 +70,10 @@ jobs:
       - name: Publish (dry run)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run == 'true'
         run: npm publish --access public --dry-run
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to npm
         if: github.event_name == 'push' || github.event.inputs.dry_run != 'true'
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')

@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.3.2] — 2026-04-21
+
+### Fixed
+- **Wizard segment toggle no longer breaks line layout.** Toggling `context-bar` (or any segment that belongs on a later line) OFF and back ON used to drop it onto the first line next to the header, producing an ugly inline `ssh · model · ctx · context ●●●…` row. Root cause: `insertAtCanonicalPosition` used `KNOWN_SEGMENTS` (no `\n` markers) to decide placement; rewrote it to use the active preset's segment list as the source of truth for line structure. Also added `collapseNewlines()` on remove so orphan `\n`s don't leave ghost blank rows.
+- **CI publish workflow.** `actions/setup-node`'s placeholder `.npmrc` rejected the granular access token (1.3.1 CI run 404'd on PUT). Workflow now writes `.npmrc` directly from the `NPM_TOKEN` secret — the exact format that works for local `npm publish` — and drops the `NODE_AUTH_TOKEN` env var since `.npmrc` is fully self-contained.
+
+### Changed
+- **Wizard preview now mocks every silent-when-absent segment.** Adding fake data for `agent.name`, `vim.mode`, `session_name`, `output_style.name` (set to `'explanatory'` so it's non-default), `worktree.name`, `exceeds_200k_tokens`, `subagents`, plus forcing `dangerousPerms: true` and `LEAN_STATUSLINE_SSH_HOST=preview-host` during preview rendering so users see a visible ON/OFF diff regardless of the local machine's environment. Real renders still go silent when CC doesn't send the field.
+- **All segments are togglable in the wizard.** Removed the `LOCKED_SEGMENTS` hard-lock on `ctx`/`5h`/`7d`/`rate-*-full`. The help text still flags them as the primary signals you probably want, but the user can now uncheck them from the wizard UI instead of needing to hand-edit `lean-statusline.json`.
+
 ## [1.3.1] — 2026-04-21
 
 ### Added
@@ -239,7 +249,8 @@ First public release on npm.
 - SSH segment for remote-session indication.
 - `install` / `uninstall` / `config` / `doctor` / `version` subcommands.
 
-[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/yigitkonur/lean-statusline/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/yigitkonur/lean-statusline/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.1.0...v1.2.0
