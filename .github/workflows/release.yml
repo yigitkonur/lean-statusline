@@ -40,13 +40,36 @@ jobs:
           # 404'd on PUT). We write `.npmrc` directly below — the exact
           # format that works for `npm publish` locally.
 
-      - name: Write .npmrc directly from secret
-        run: echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+      - name: Configure npm auth (env + npm config set)
+        # Belt-and-suspenders: write ~/.npmrc, a project-local .npmrc, AND
+        # use `npm config set` so whichever resolution order npm picks, auth
+        # is there. Token is passed via env var — never appears in argv/logs,
+        # but the `.npmrc` file itself has to contain the literal token value
+        # (not a `${}` placeholder) because npm doesn't interpolate env vars.
+        run: |
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > ~/.npmrc
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > .npmrc
+          npm config set "//registry.npmjs.org/:_authToken=$NPM_TOKEN"
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Install dependencies
         run: npm install
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Debug auth (mask-safe)
+        run: |
+          echo "node:  $(node --version)"
+          echo "npm:   $(npm --version)"
+          echo "registry: $(npm config get registry)"
+          echo "userconfig:  $(npm config get userconfig)"
+          echo "globalconfig: $(npm config get globalconfig)"
+          echo "has _authToken in user:  $(grep -c '_authToken' ~/.npmrc || true)"
+          echo "has _authToken in proj:  $(grep -c '_authToken' ./.npmrc || true)"
+          echo "whoami result: $(npm whoami --registry=https://registry.npmjs.org/ 2>&1 || true)"
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Run tests (non-PTY subset)
         # test/wizard.test.mjs requires @lydell/node-pty which is a devDep;
