@@ -29,8 +29,8 @@ function writeJson(path, value) {
 
 test('thresholds: defaults use warn_at + critical_at', () => {
     assert.deepEqual(DEFAULTS.thresholds, {
-        warn_at: 70,
-        critical_at: 90,
+        warn_at: 35,
+        critical_at: 70,
     });
 });
 

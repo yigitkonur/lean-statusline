@@ -32,10 +32,11 @@ function makeCtx(overrides = {}) {
             ...structuredClone(DEFAULTS).show,
             branch: false,
             dirty: false,
-            zap: false,
-            bars: false,
             paceDelta: false,
         },
+        // 1.5.0: show.bars master toggle removed — use rateBarWidth=0 for
+        // numbers-only output in the test assertions below.
+        rateBarWidth: 0,
         rateLimit: {
             collapseMinutes: 5,
             hysteresisSeconds: 30,

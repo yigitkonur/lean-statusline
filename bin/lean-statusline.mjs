@@ -309,7 +309,20 @@ async function cmdInstall(args) {
         await runWizard();
     }
 
-    console.log('\ndone. restart Claude Code to see the new statusline.');
+    // Post-install summary so the user sees what shipped before restarting CC.
+    // Re-load the config in case the wizard rewrote it.
+    try {
+        const { config: finalCfg } = loadConfig();
+        console.log('\n─── install summary ───');
+        console.log(`  version:  ${PKG.version}`);
+        console.log(`  preset:   ${finalCfg.preset ?? 'compact'}`);
+        console.log(`  palette:  ${finalCfg.palette ?? 'solarized'}`);
+        console.log(`  icons:    ${finalCfg.icons ?? 'unicode'}`);
+        console.log(`  refresh:  ${finalCfg.refreshInterval ?? 0}s`);
+        console.log('');
+    } catch { /* non-fatal */ }
+
+    console.log('done. restart Claude Code to see the new statusline.');
 }
 
 // ── uninstall ───────────────────────────────────────────

@@ -27,7 +27,10 @@ function makeCtx(overrides = {}) {
         cfg: {
             ...DEFAULTS,
             segments: ['model', 'dir', 'cost', 'lines', '\n', 'rate-5h-full', 'rate-7d-full'],
-            show: { ...DEFAULTS.show, branch: false, dirty: false, zap: false, bars: false },
+            show: { ...DEFAULTS.show, branch: false, dirty: false },
+            // 1.5.0: bars always render when width > 0. Set to 0 to match the
+            // "numbers-only" assertions the test relied on pre-1.5.0.
+            rateBarWidth: 0,
             icons: 'ascii',
             colors: false,
             layout: {
@@ -84,19 +87,23 @@ test('layout: narrow widths drop 7d content first but keep the 5h percent', () =
     assert.doesNotMatch(plain, /\(in /);
 });
 
-test('layout: narrow header widths drop project crumbs, lines, and cost', () => {
+test('layout: narrow header drops tagged sections then ellipsis-truncates overflow', () => {
     const ctx = makeCtx();
     ctx.layoutTagged = true;
     const rendered = renderLine(ctx);
     const laidOut = applyLayout(ctx, rendered, 24);
     const plain = stripAnsi(laidOut);
     const [header] = plain.split('\n');
+    // 1.5.0 added an ellipsis fallback after the drop ladder. At width=24
+    // the dir still overflows after tagged fragments are stripped, so the
+    // line ends in `…` instead of spilling past the terminal edge.
     assert.match(header, /Opus 4\.7/);
-    assert.match(header, /subdir/);
+    assert.ok(header.length <= 24, `header length ${header.length} must fit 24 cols`);
+    assert.ok(header.endsWith('…'), `header should end with … when truncated: ${header}`);
     assert.doesNotMatch(header, /from project/);
     assert.doesNotMatch(header, /\$1\.50/);
     assert.doesNotMatch(header, /\+12/);
-  });
+});
 
 test('layout: displayWidth ignores ansi and counts emoji as wide glyphs', () => {
     assert.equal(displayWidth('\x1b[31mabc\x1b[0m'), 3);

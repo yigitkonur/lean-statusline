@@ -34,10 +34,11 @@ function rateCfg(segment, overrides = {}) {
         ...cfg.show,
         branch: false,
         dirty: false,
-        zap: false,
-        bars: false,
         ...overrides.show,
     };
+    // 1.5.0: `show.bars` master toggle removed. Use rateBarWidth=0 to
+    // suppress bar glyphs in the test output (numbers-only readout).
+    cfg.rateBarWidth = 0;
     cfg.pace = {
         fastBand: 5,
         slowBand: -5,
