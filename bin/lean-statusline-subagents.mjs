@@ -23,9 +23,10 @@ process.stdin.on('end', () => {
     const palette = makePalette(colors, cfg.palette);
     const icons = applyBarStyle(pickIcons(cfg.icons), cfg.barStyle);
 
+    const now = Date.now();
     for (const task of tasks) {
         if (!task?.id) continue;
-        const content = renderTask(task, palette, icons);
+        const content = renderTask(task, palette, icons, now);
         process.stdout.write(JSON.stringify({ id: task.id, content }) + '\n');
     }
     process.exit(0);

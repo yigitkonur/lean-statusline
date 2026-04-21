@@ -15,8 +15,9 @@ import { loadState, saveState, tickState } from '../lib/state.mjs';
 import { emptyTranscriptState, reduceTranscript } from '../lib/transcript.mjs';
 import { getRateLimits } from '../lib/usage.mjs';
 import {
-    claudeHome, settingsPath, detectExisting, findOnPath, pickCommand,
-    backupSettings, patchSettings, unpatchSettings, smokeTest,
+    claudeHome, settingsPath, detectExisting, findOnPath, pickCommand, pickSubagentCommand,
+    backupSettings, patchSettings, unpatchSettings, unpatchSubagentSettings,
+    syncSettingsRefreshInterval, smokeTest,
 } from '../lib/install.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 import { PRESETS, PRESET_NAMES, applyPreset, resolvePresetAlias } from '../lib/presets.mjs';
@@ -245,8 +246,17 @@ async function cmdInstall(args) {
                    : 'direct node (from clone)';
     if (!flags['--no-patch']) {
         const { config: installedCfg } = loadConfig();
-        patchSettings(command, { refreshInterval: installedCfg.refreshInterval ?? 0 });
+        // Resolve the subagent bin command the same way we resolved the main
+        // one — npx tree, PATH lookup, fallback to `node <abspath>`. Keeps
+        // the two binaries installed/uninstalled as a pair.
+        const subagentBin = BIN.replace(/lean-statusline\.mjs$/, 'lean-statusline-subagents.mjs');
+        const subagentCommand = pickSubagentCommand(subagentBin, flags['--via']);
+        patchSettings(command, {
+            refreshInterval: installedCfg.refreshInterval ?? 0,
+            subagentCommand,
+        });
         console.log(`patched settings.json#statusLine.command = ${command}`);
+        console.log(`patched settings.json#subagentStatusLine.command = ${subagentCommand}`);
         console.log(`runtime: ${runtime}`);
     } else {
         console.log('skipped settings.json patch (--no-patch)');
@@ -284,8 +294,13 @@ async function cmdInstall(args) {
 async function cmdUninstall(_args) {
     const bak = backupSettings();
     const changed = unpatchSettings();
+    const subChanged = unpatchSubagentSettings();
     if (changed) {
         console.log(`removed statusLine from ${settingsPath()}`);
+        if (subChanged) console.log(`removed subagentStatusLine from ${settingsPath()}`);
+        if (bak) console.log(`backup → ${bak}`);
+    } else if (subChanged) {
+        console.log(`removed subagentStatusLine from ${settingsPath()}`);
         if (bak) console.log(`backup → ${bak}`);
     } else {
         console.log('no statusLine entry to remove.');
@@ -321,9 +336,15 @@ async function cmdConfig(args) {
             process.exit(2);
         }
         const { config, path } = loadConfig();
-        saveConfig(applyPreset(config, resolved), path);
+        const merged = applyPreset(config, resolved);
+        saveConfig(merged, path);
         const note = resolved !== args[1] ? ` (${args[1]} → ${resolved})` : '';
         console.log(`applied preset "${resolved}"${note} → ${path}`);
+        // Sync settings.json#statusLine.refreshInterval to the preset's value so
+        // CC picks up the new refresh cadence without requiring a re-install.
+        if (syncSettingsRefreshInterval(merged.refreshInterval ?? 0)) {
+            console.log(`synced statusLine.refreshInterval = ${merged.refreshInterval ?? 0}`);
+        }
         return;
     }
     if (args[0] === '--reset') {
