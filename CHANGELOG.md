@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-04-21
+
+### Added
+- **Inline rendered examples beside every wizard toggle.** A new `SEGMENT_EXAMPLE` / `ENUM_EXAMPLE` builder produces palette-accurate samples for all 19 core/optional segments (`🔒 preview-host`, `◐ high`, `🌿 feat-branch`, `+156 -23`, …) plus the 4 high-signal enums (`hostnameStyle`, `modelFormat`, `dirStyle`, `show.ctxLabel`). Shown in a dedicated column on every row — always visible, dimmed when the segment is off — so toggling produces a visible change even when the main preview drops the segment due to width. Rebuild is cached on `palette|colors|icons|barStyle` so navigation stays fast.
+
+### Fixed
+- **SSH host line no longer renders in preview when `ssh` is toggled off.** The preview forced `LEAN_STATUSLINE_SSH_HOST=preview-host.local.dev` unconditionally on every page; now gated on `state.segments.includes('ssh')`. Toggle flips → preview reflects it instantly.
+- **Weekly rate row now stays visible at any bar width.** Preview-only cfg clears `layout.dropOrder` so `7d.*` keys never silently drop, and a new `splitRateBarLine()` helper injects `\n` between `rate-5h-full` and `rate-7d-full` when both share a line. Each rate bar gets its own preview row regardless of `rateBarWidth`. Real-runtime layout is untouched — production configs still collapse both bars onto one line when they fit.
+- **Catppuccin Latte labels readable on dark terminals.** `white` slot remapped `#4c4f69` → `#acb0be` (Latte's `subtext1`). The prior value was designed for light-theme terminal backgrounds; Claude Code terminals skew dark, so `current`/`weekly`/`context` labels rendered nearly invisible.
+- **Wizard page 5 fits on 24-row terminals.** On page 5 only, the preview is sliced to the first line and the `conditionalPreviewNote` footer is suppressed, recovering ~5 rows so the 12 optional toggles + 3 formatting fields no longer clip under the fold. The inline examples (above) mean users don't lose any feedback about what their choices look like.
+
+## [1.5.0] — 2026-04-21
+
+### Added
+- **Ellipsis truncation in layout.** Overly long lines that survive the drop-ladder now terminate with a trailing `…` at `previewWidth` rather than wrapping or silently overflowing. Visible in both the real statusline and the wizard preview.
+- **`show.ctxLabel` enum.** Three explicit styles for the `ctx` header: `text` (`context 32%`, new default), `icon` (legacy `✎ 32%`), `none` (`32%`). Replaces the binary "show ctx label" bool.
+
+### Changed
+- **Wizard reduced to 5 pages** (was 6): preset · layout · appearance · core segments · optional features. Each page fits in 24 rows on standard terminals.
+- **Palette list trimmed from 17 → 6** hand-picked entries: solarized, rose-pine, catppuccin, catppuccin-latte, dracula, monochrome. Dropped entries (default, nord, tokyo-night\*, kanagawa\*, one-dark, gruvbox, ayu-\*, solarized-light, rose-pine-moon/dawn, catppuccin-frappe/macchiato) still documented under `docs/research/palettes/` and auto-migrated via `PALETTE_ALIASES` in `loadConfig` so saved configs keep loading.
+- **Bar styles trimmed 11 → 7**, reordered with `lanterns` as #2 per user pref: dots (default), lanterns, blocks, ascii, squares, bricks, lines. Dropped styles (braille, hearts, arrows, triangles) alias onto `dots` via `BAR_STYLE_ALIASES`.
+- **Config schema simplified.** Removed `costPrecision`, `compactNumbers`, `branchStyle`, `branchMaxLen`, `ctxBarWidth`, `show.zap`, `show.bars`. Saved configs referencing them load with a non-fatal deprecation warning. `refreshInterval` upper bound lifted 60 → 3600 so `300` (5 min) validates.
+- **Rate-limit dedup.** When both the compact (`5h`/`7d`) and full (`rate-5h-full`/`rate-7d-full`) form are listed, only the full form renders — fixes a duplicate-row bug when users toggled both in the wizard. Standalone compact still works.
+
 ## [1.3.2] — 2026-04-21
 
 ### Fixed
@@ -249,7 +273,9 @@ First public release on npm.
 - SSH segment for remote-session indication.
 - `install` / `uninstall` / `config` / `doctor` / `version` subcommands.
 
-[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.3.2...HEAD
+[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.0...v1.5.1
+[1.5.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.4.0...v1.5.0
 [1.3.2]: https://github.com/yigitkonur/lean-statusline/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/yigitkonur/lean-statusline/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.2.0...v1.3.0
