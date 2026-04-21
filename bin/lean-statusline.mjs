@@ -6,6 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, saveConfig, applyEnvOverrides, validateConfig, DEFAULTS, KNOWN_SEGMENTS, CONFIG_PATH } from '../lib/config.mjs';
+import { checkCcUpdate } from '../lib/version-check.mjs';
 import { makePalette, colorsEnabled, pickIcons, applyBarStyle } from '../lib/colors.mjs';
 import { applyLayout, resolveWidth } from '../lib/layout.mjs';
 import { renderLine, detectDangerousPerms, resolveEffortLevel, readContextPct } from '../lib/segments.mjs';
@@ -14,8 +15,9 @@ import { loadState, saveState, tickState } from '../lib/state.mjs';
 import { emptyTranscriptState, reduceTranscript } from '../lib/transcript.mjs';
 import { getRateLimits } from '../lib/usage.mjs';
 import {
-    claudeHome, settingsPath, detectExisting, findOnPath, pickCommand,
-    backupSettings, patchSettings, unpatchSettings, smokeTest,
+    claudeHome, settingsPath, detectExisting, findOnPath, pickCommand, pickSubagentCommand,
+    backupSettings, patchSettings, unpatchSettings, unpatchSubagentSettings,
+    syncSettingsRefreshInterval, smokeTest,
 } from '../lib/install.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 import { PRESETS, PRESET_NAMES, applyPreset, resolvePresetAlias } from '../lib/presets.mjs';
@@ -176,6 +178,14 @@ async function renderFromStdin() {
         dangerousPerms: detectDangerousPerms(),
         effortLevel: resolveEffortLevel(input),
         contextPct: readContextPct(input),
+        // null when up-to-date or unknown; a version string when a newer CC is on npm.
+        // checkCcUpdate is synchronous — reads a cache file, spawns a background fetch
+        // when stale. Never blocks the render path.
+        ccUpdate: cfg.show?.ccUpdate !== false ? checkCcUpdate(probe('version', input)) : null,
+        // LEAN_STATUSLINE_PACE_PREVIEW=1 forces the 5h ETA + pace-explainer to
+        // render regardless of real urgency — used by the configure wizard so
+        // users can see the "vs est:" format without waiting for real burn.
+        pacePreview: process.env.LEAN_STATUSLINE_PACE_PREVIEW === '1',
     };
     const rendered = renderLine({ ...ctx, layoutTagged: true });
     process.stdout.write(applyLayout(ctx, rendered, resolveWidth(ctx)));
@@ -235,8 +245,18 @@ async function cmdInstall(args) {
                    : command === 'lean-statusline' ? 'global bin (fast)'
                    : 'direct node (from clone)';
     if (!flags['--no-patch']) {
-        patchSettings(command);
+        const { config: installedCfg } = loadConfig();
+        // Resolve the subagent bin command the same way we resolved the main
+        // one — npx tree, PATH lookup, fallback to `node <abspath>`. Keeps
+        // the two binaries installed/uninstalled as a pair.
+        const subagentBin = BIN.replace(/lean-statusline\.mjs$/, 'lean-statusline-subagents.mjs');
+        const subagentCommand = pickSubagentCommand(subagentBin, flags['--via']);
+        patchSettings(command, {
+            refreshInterval: installedCfg.refreshInterval ?? 0,
+            subagentCommand,
+        });
         console.log(`patched settings.json#statusLine.command = ${command}`);
+        console.log(`patched settings.json#subagentStatusLine.command = ${subagentCommand}`);
         console.log(`runtime: ${runtime}`);
     } else {
         console.log('skipped settings.json patch (--no-patch)');
@@ -274,8 +294,13 @@ async function cmdInstall(args) {
 async function cmdUninstall(_args) {
     const bak = backupSettings();
     const changed = unpatchSettings();
+    const subChanged = unpatchSubagentSettings();
     if (changed) {
         console.log(`removed statusLine from ${settingsPath()}`);
+        if (subChanged) console.log(`removed subagentStatusLine from ${settingsPath()}`);
+        if (bak) console.log(`backup → ${bak}`);
+    } else if (subChanged) {
+        console.log(`removed subagentStatusLine from ${settingsPath()}`);
         if (bak) console.log(`backup → ${bak}`);
     } else {
         console.log('no statusLine entry to remove.');
@@ -311,9 +336,15 @@ async function cmdConfig(args) {
             process.exit(2);
         }
         const { config, path } = loadConfig();
-        saveConfig(applyPreset(config, resolved), path);
+        const merged = applyPreset(config, resolved);
+        saveConfig(merged, path);
         const note = resolved !== args[1] ? ` (${args[1]} → ${resolved})` : '';
         console.log(`applied preset "${resolved}"${note} → ${path}`);
+        // Sync settings.json#statusLine.refreshInterval to the preset's value so
+        // CC picks up the new refresh cadence without requiring a re-install.
+        if (syncSettingsRefreshInterval(merged.refreshInterval ?? 0)) {
+            console.log(`synced statusLine.refreshInterval = ${merged.refreshInterval ?? 0}`);
+        }
         return;
     }
     if (args[0] === '--reset') {
