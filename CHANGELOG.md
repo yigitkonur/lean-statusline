@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **New statusline signals.** Added the `subagents` segment, transcript-backed subagent fallback, project-dir drift crumbs, worktree auto-elevation, and width-aware layout dropping for narrow terminals.
 
 ### Changed
+- **Context token count multiplied by 1.2 for accuracy.** Claude Code's reported token counts consistently undercount real context usage (observed ~81% of actual at the 1M-token compaction boundary on Opus 4.7). Tokens are best-effort estimates anyway — Anthropic does not publish a production-grade tokenizer for client-side use, and running one locally adds unnecessary CPU overhead. Multiplying the raw API count by 1.2 brings the displayed percentage in line with observed compaction triggers.
 - **Rate-limit rendering is more informative.** `5h`, `7d`, `rate-5h-full`, and `rate-7d-full` now compute pace deltas, collapse countdowns near reset, and use the new `warn_at` / `critical_at` threshold names while still accepting legacy aliases with warnings.
 - **Noise filtering moved into conditionals.** Default agent names, zero-cost/zero-line values, and other low-signal cases are now suppressed centrally instead of inside individual segments.
 - **Compact/full presets surface more session context.** Worktree/subagent signals can render automatically, transcript reduction is enabled only where it pays off, and the layout ladder trims tagged fragments before lines overflow.
