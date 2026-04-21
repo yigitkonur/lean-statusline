@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-04-21
+
 ### Added
 - **Defensive render-state plumbing.** New `probe`, `state`, and `transcript` internals let renders read unstable payload shapes safely, persist per-session state, and resume transcript reducers incrementally between renders.
 - **Project-aware configuration + new feature blocks.** Added project-local config resolution (`lean-statusline config --init-project-file`), `conditionals`, `pace`, `subagents`, `transcript`, and `layout` config blocks, plus `doctor --clean` for pruning stale session-state files.
@@ -227,7 +229,8 @@ First public release on npm.
 - SSH segment for remote-session indication.
 - `install` / `uninstall` / `config` / `doctor` / `version` subcommands.
 
-[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.2...v1.1.0
 [1.0.2]: https://github.com/yigitkonur/lean-statusline/compare/v1.0.1...v1.0.2
