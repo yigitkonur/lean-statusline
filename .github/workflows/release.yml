@@ -65,16 +65,23 @@ jobs:
         id: bump
         if: github.event_name == 'push'
         run: |
-          MSG="$(git log -1 --pretty=%s%n%b)"
-          SUBJECT="$(echo "$MSG" | head -1)"
-          if echo "$MSG" | grep -Eq 'BREAKING[ _]?CHANGE|^[a-z]+(\([^)]+\))?!:'; then
-            echo "type=major" >> "$GITHUB_OUTPUT"
+          # Prior regex matched the literal phrase "BREAKING CHANGE" anywhere in
+          # the body — including when I documented the rule in a commit message,
+          # which auto-bumped to 2.0.0. Conventional-commit spec requires the
+          # marker to be at the **start of a line**, so use `grep -E '^…:'` on the
+          # body (processed line-by-line) plus a separate subject-only check for
+          # the `type(scope)!:` form.
+          SUBJECT="$(git log -1 --pretty=%s)"
+          BODY="$(git log -1 --pretty=%b)"
+          if echo "$BODY" | grep -Eq '^BREAKING[ -]?CHANGE:' || echo "$SUBJECT" | grep -Eq '^[a-z]+(\([^)]+\))?!:'; then
+            BUMP=major
           elif echo "$SUBJECT" | grep -Eq '^feat(\([^)]+\))?:'; then
-            echo "type=minor" >> "$GITHUB_OUTPUT"
+            BUMP=minor
           else
-            echo "type=patch" >> "$GITHUB_OUTPUT"
+            BUMP=patch
           fi
-          echo "bump from subject '$SUBJECT'"
+          echo "type=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "bump=$BUMP from subject '$SUBJECT'"
 
       - name: Bump, commit, tag, push
         id: version
