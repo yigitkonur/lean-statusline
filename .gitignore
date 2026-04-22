@@ -3,3 +3,5 @@
 /tmp/
 /node_modules/
 /package-lock.json
+# Local agent-tooling alias; AGENTS.md is the canonical source.
+/CLAUDE.md
