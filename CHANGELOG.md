@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.5.3] — 2026-04-21
+
+### Changed
+- **`DEFAULTS.show.worktree` flipped from true to false.** Worktree auto-elevation (inserting `🌿 <name>` before `dir` whenever worktree data is present) ran on every install by default, which made the wizard preview always show a worktree row even for users who never opted in. Users who want the auto-elevation toggle `show.worktree` on via wizard page 4.
+
+### Fixed
+- **One-shot migration for pre-1.5.3 saved configs.** `normalizeConfig` now stamps `_configVersion` on load. When a config is on a known preset (`minimal`/`compact`/`full`) AND still contains the old preset-shipped `ssh` segment, 1.5.3 resets the three fields whose defaults changed: strips `ssh` from `segments`, flips `show.worktree` and `show.branch` to `false`. The linkage on ssh-presence avoids clobbering intentional choices — a user who removed ssh but kept `show.worktree: true` explicitly keeps it. Each reset emits a one-line warning so users understand the change. The 1.5.2 preset template edits meant new installs already got the new defaults; this migration catches existing users too.
+
 ## [1.5.2] — 2026-04-21
 
 ### Changed
@@ -279,7 +287,8 @@ First public release on npm.
 - SSH segment for remote-session indication.
 - `install` / `uninstall` / `config` / `doctor` / `version` subcommands.
 
-[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.2...HEAD
+[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.3...HEAD
+[1.5.3]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.4.0...v1.5.0

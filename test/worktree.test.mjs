@@ -37,6 +37,10 @@ function worktreeCfg(overrides = {}) {
         branch: false,
         dirty: false,
         zap: false,
+        // 1.5.3: worktree default flipped to off. These tests exercise the
+        // auto-elevation code path, so they need to explicitly opt in.
+        // Individual tests override via `overrides.show.worktree: false`.
+        worktree: true,
         ...overrides.show,
     };
     return { ...cfg, ...overrides, show: cfg.show };
@@ -47,8 +51,8 @@ const baseInput = {
     workspace: { current_dir: '/Users/me/dev/repo', project_dir: '/Users/me/dev/repo' },
 };
 
-test('worktree defaults: show.worktree is enabled by default', () => {
-    assert.equal(DEFAULTS.show.worktree, true);
+test('worktree defaults: show.worktree is disabled by default (1.5.3 change)', () => {
+    assert.equal(DEFAULTS.show.worktree, false);
 });
 
 test('worktree auto-elevation: no worktree signal stays absent', () => {
