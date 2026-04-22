@@ -5,10 +5,20 @@ Playbook for coding agents (and humans) maintaining `lean-statusline`. Focused o
 ## Repo shape
 
 - **Runtime**: Node ≥ 20. Zero deps. ESM only (`"type": "module"`).
-- **Source**: `bin/lean-statusline.mjs` (entry) + `lib/*.mjs` (segment registry, config, wizard TUI, install/doctor helpers, rate-limit cache).
+- **Source**: `bin/lean-statusline.mjs` (entry) + `lib/*.mjs`:
+  - core render: `segments.mjs`, `presets.mjs`, `colors.mjs`, `git.mjs`, `usage.mjs`, `subagent-render.mjs`
+  - config + CLI plumbing: `config.mjs`, `install.mjs`, `doctor.mjs`, `wizard.mjs`, `tui.mjs`, `version-check.mjs` (background self + Claude Code update checks)
+  - signal plumbing (landed v1.3.0): `probe.mjs` (payload shape guards), `state.mjs` (per-session state file), `transcript.mjs` (JSONL reducer), `conditionals.mjs` (hide/require rules), `pace.mjs` (stateless pace math), `layout.mjs` (width-aware drop ladder)
+- **Tests**: `test/*.test.mjs` (run with `npm test`) plus `test/fixtures/payloads/*.json` — pinned Claude Code stdin shapes for `lib/probe.mjs` (`2.1.80`, `2.1.90`, `2.1.100`, `2.1.109`). When a new payload field lands, add a fixture; don't relax the probe.
+- **Docs**: `docs/research/` (evidence base for roadmap decisions) + `docs/new-features/` (per-feature specs; index at `docs/new-features/00-roadmap/01-index.md`).
 - **Published**: npm as [`lean-statusline`](https://www.npmjs.com/package/lean-statusline). Unscoped, public access.
 - **Git remote**: `git@github.com:yigitkonur/lean-statusline.git` (SSH, private repo at time of writing).
 - **Author identity**: `Yigit Konur <9989650+yigitkonur@users.noreply.github.com>` — already set in `~/.gitconfig` globally. Never pass `-c user.email=…` overrides; plain `git commit` is correct.
+
+## CI
+
+- `.github/workflows/ci.yml` runs on every push to `main` and every PR. Matrix: `ubuntu-latest` + `macos-latest` × Node `20` / `22` / `24`. Plus a `windows-latest` smoke job that runs `node --test test/render.test.mjs` only (the PTY suite self-skips on win32 per microsoft/node-pty#827).
+- No `package-lock.json` is committed. CI uses `npm install` (not `npm ci`). Do not add a lockfile without discussing first — the project has no runtime deps, only a dev-only `@lydell/node-pty`, and the lockfile would churn on every npm release.
 
 ## Conventional commits (required)
 
@@ -43,10 +53,15 @@ Run from repo root, on `main`, with a clean working tree.
 # Sanity: no uncommitted work
 git status --short   # must be empty
 
-# All tests pass (such as they are)
-node -e "import('./lib/wizard.mjs').then(() => console.log('loads'))"
+# Full test suite (also runs in CI across Ubuntu+macOS × Node 20/22/24)
+npm test
+
+# Secondary smoke: the binary still renders against a real-shaped payload
 echo '{"model":{"display_name":"test"},"context_window":{"context_window_size":200000,"used_percentage":5},"cwd":"/tmp"}' | node bin/lean-statusline.mjs
+
+# Health check + prune stale per-session state files (added in the unreleased wave)
 node bin/lean-statusline.mjs doctor
+node bin/lean-statusline.mjs doctor --clean
 ```
 
 ### 2. Bump version + update CHANGELOG
@@ -155,6 +170,7 @@ done
 - Never bump version in `package.json` without a matching `CHANGELOG.md` entry in the same commit.
 - Never break the config schema committed in `CHANGELOG.md#1.0.0` without a major-version bump.
 - Never use `-c user.email=…` when committing. The global `~/.gitconfig` has the right identity.
+- Never commit a `package-lock.json`. The repo has no runtime deps; CI intentionally uses `npm install`, not `npm ci`. A lockfile would add churn on every npm release with zero safety payoff.
 
 ## Repo facts, handy
 
@@ -163,4 +179,6 @@ done
 - License: MIT
 - Entry point: `bin/lean-statusline.mjs`
 - Config file: `~/.claude/lean-statusline.json`
+- Project-local override: `./.claude/lean-statusline.json` (first-match-wins; scaffold with `config --init-project-file`)
+- Session-state files: `os.tmpdir()/lean-statusline-state-<session>.json` (override with `LEAN_STATUSLINE_STATE_DIR`; prune with `doctor --clean`)
 - Claude Code settings path: `~/.claude/settings.json` (under `.statusLine`)
