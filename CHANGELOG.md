@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.5.4] — 2026-04-21
+
+### Changed
+- **Preset cycle order now `full → compact → minimal`.** Previous order (`minimal → compact → full`) under-sold the defaults on the first right-arrow press. `PRESETS` object iteration drives `PRESET_NAMES`, so reordering the entries reorders the wizard enum automatically.
+
+### Fixed
+- **Wizard preview block has a fixed vertical height.** Cycling presets (or any change that shortens the preview) used to pull the form field up because the preview body collapsed from 4 lines (full) down to 1 line (minimal). 1.5.4 pads shorter previews with blank lines up to a 4-row budget — the `full` preset's ceiling — so the `preset` / first-focused-field stays at the same row regardless of selection. Page 5's compressed single-line preview is exempt (the form is directly below anyway).
+
 ## [1.5.3] — 2026-04-21
 
 ### Changed
@@ -287,7 +295,8 @@ First public release on npm.
 - SSH segment for remote-session indication.
 - `install` / `uninstall` / `config` / `doctor` / `version` subcommands.
 
-[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.3...HEAD
+[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.4...HEAD
+[1.5.4]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.0...v1.5.1
