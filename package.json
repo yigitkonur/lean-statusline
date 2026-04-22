@@ -1,6 +1,6 @@
 {
   "name": "lean-statusline",
-  "version": "1.5.4",
+  "version": "1.5.5",
   "description": "statusline for claude code — minimal/compact/full presets, p10k-style configure wizard, inline pace ETA + urgency explainer, subagent renderer, auto-update on render, node-only, zero deps.",
   "type": "module",
   "bin": {
