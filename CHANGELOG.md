@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.5.2] — 2026-04-21
+
+### Changed
+- **`ssh` off by default across every preset.** `minimal`, `compact`, `full`, and `DEFAULTS.segments` no longer include `ssh`. Most sessions are local, and the wizard preview showing `🔒 preview-host.local.dev` on page 1 before the user reached the SSH toggle was confusing. Users who want the remote-host prefix turn `ssh` on via wizard page 4 (core segments) — the inline example column now makes that toggle self-documenting. Existing saved configs with `ssh` already in `segments` keep working unchanged.
+- **Wizard preview keeps `current` and `weekly` on the same line when the preset groups them there.** Reverted the 1.5.1 `splitRateBarLine()` helper that forced them onto separate preview rows. The `layout.dropOrder = []` override still prevents `weekly` from silently dropping when the line overflows — per-line ellipsis truncation handles true overflow with a trailing `…`. Preview now mirrors the real statusline's layout exactly.
+
 ## [1.5.1] — 2026-04-21
 
 ### Added
@@ -273,7 +279,8 @@ First public release on npm.
 - SSH segment for remote-session indication.
 - `install` / `uninstall` / `config` / `doctor` / `version` subcommands.
 
-[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.2...HEAD
+[1.5.2]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.4.0...v1.5.0
 [1.3.2]: https://github.com/yigitkonur/lean-statusline/compare/v1.3.1...v1.3.2
