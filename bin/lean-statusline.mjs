@@ -17,7 +17,7 @@ import { getRateLimits } from '../lib/usage.mjs';
 import {
     claudeHome, settingsPath, detectExisting, findOnPath, pickCommand, pickSubagentCommand,
     backupSettings, patchSettings, unpatchSettings, unpatchSubagentSettings,
-    syncSettingsRefreshInterval, smokeTest,
+    syncSettingsRefreshInterval, smokeTest, ensureGlobalInstall, NPM_EACCES_HINT,
 } from '../lib/install.mjs';
 import { runDoctor } from '../lib/doctor.mjs';
 import { PRESETS, PRESET_NAMES, applyPreset, resolvePresetAlias } from '../lib/presets.mjs';
@@ -232,6 +232,26 @@ async function cmdInstall(args) {
         }
     }
 
+    // Resolve runtime mode early — defaults to 'global' (npm install -g).
+    // The legacy auto-detect that turned npx-bootstrapped installs into a
+    // persisted `npx -y lean-statusline@latest` command (~9× CPU per render
+    // vs the direct binary) is gone. To opt out of the global install, pass
+    // --via npx (slow but self-updating) or --via node (clone development).
+    const mode = flags['--via'] ?? 'global';
+
+    if (mode === 'global' && !flags['--no-patch']) {
+        try {
+            const r = await ensureGlobalInstall({ log: m => console.log(`[npm] ${m}`) });
+            const verb = r.action === 'already-present' ? 'already installed'
+                       : r.action === 'reinstalled' ? 'reinstalled'
+                       : 'installed';
+            console.log(`global bin ${verb} → ${r.binPath}`);
+        } catch (err) {
+            reportInstallError(err);
+            process.exit(1);
+        }
+    }
+
     const det = detectExisting();
     console.log(`claude home:   ${claudeHome()}`);
     console.log(`settings.json: ${det.settingsExists ? 'exists' : 'will create'}`);
@@ -262,17 +282,17 @@ async function cmdInstall(args) {
         console.log(`applied preset: ${resolved}${note}`);
     }
 
-    const command = pickCommand(BIN, flags['--via']);
+    const command = pickCommand(BIN, mode);
     const runtime = command.startsWith('npx ') ? 'npx (self-updating, ~100–300ms/render)'
                    : command === 'lean-statusline' ? 'global bin (fast)'
                    : 'direct node (from clone)';
     if (!flags['--no-patch']) {
         const { config: installedCfg } = loadConfig();
         // Resolve the subagent bin command the same way we resolved the main
-        // one — npx tree, PATH lookup, fallback to `node <abspath>`. Keeps
-        // the two binaries installed/uninstalled as a pair.
+        // one — PATH lookup, fallback to `node <abspath>`. Keeps the two
+        // binaries installed/uninstalled as a pair.
         const subagentBin = BIN.replace(/lean-statusline\.mjs$/, 'lean-statusline-subagents.mjs');
-        const subagentCommand = pickSubagentCommand(subagentBin, flags['--via']);
+        const subagentCommand = pickSubagentCommand(subagentBin, mode);
         patchSettings(command, {
             refreshInterval: installedCfg.refreshInterval ?? 0,
             subagentCommand,
@@ -492,9 +512,7 @@ async function cmdSelfupdate(args) {
     });
     if (install.status !== 0) {
         console.error('npm install -g failed.');
-        console.error('  on macOS with homebrew-managed node, the global prefix is writable without sudo.');
-        console.error('  if you see EACCES, either re-run with sudo or follow the npm docs on fixing permissions:');
-        console.error('    https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally');
+        console.error(NPM_EACCES_HINT);
         process.exit(install.status ?? 1);
     }
     console.log(`done. next statusline render picks up ${registryVersion}.`);
@@ -506,6 +524,69 @@ async function cmdDoctor(args = []) {
     const { report, fails } = await runDoctor(BIN, { clean: flags['--clean'] });
     console.log(report);
     process.exit(fails ? 1 : 0);
+}
+
+// ── install error UX ────────────────────────────────────
+// One switch, one specific remediation per failure code. No implicit
+// fallback chain — the user opts in to the npx form via --via npx.
+function reportInstallError(err) {
+    const platform = process.platform;
+    switch (err.code) {
+        case 'NPM_NOT_FOUND': {
+            console.error('npm not found on PATH.');
+            console.error('  install Node.js (which bundles npm) from https://nodejs.org/');
+            console.error('  or via your package manager:');
+            console.error('    macOS:   brew install node');
+            console.error('    debian:  apt install nodejs npm');
+            console.error('    windows: winget install OpenJS.NodeJS');
+            console.error('');
+            console.error('to skip the global install and use the slower self-updating npx command:');
+            console.error('  lean-statusline install --via npx');
+            return;
+        }
+        case 'NPM_INSTALL_FAILED': {
+            console.error(`npm install -g lean-statusline failed (exit ${err.status ?? '?'}).`);
+            console.error(NPM_EACCES_HINT);
+            if (platform === 'darwin') {
+                console.error('  on macOS with the .pkg installer (prefix /usr/local), try: sudo npm install -g lean-statusline');
+                console.error('  homebrew/nvm/fnm prefixes are user-writable and don\'t need sudo.');
+            } else if (platform === 'win32') {
+                console.error('  on windows, try running the terminal as Administrator if you see EPERM/EACCES.');
+            }
+            if (err.stderr) {
+                console.error('');
+                console.error('--- npm output ---');
+                console.error(err.stderr.trim());
+                console.error('------------------');
+            }
+            console.error('');
+            console.error('to skip the global install and use the slower self-updating npx command:');
+            console.error('  lean-statusline install --via npx');
+            return;
+        }
+        case 'BIN_NOT_ON_PATH': {
+            console.error('npm install -g succeeded but `lean-statusline` is not on PATH.');
+            if (err.npmPrefixBin) {
+                console.error(`  the npm global bin directory is: ${err.npmPrefixBin}`);
+                console.error('  add it to PATH and re-run install. example for zsh/bash:');
+                if (platform === 'win32') {
+                    console.error(`    setx PATH "%PATH%;${err.npmPrefixBin}"`);
+                } else {
+                    console.error(`    echo 'export PATH="${err.npmPrefixBin}:$PATH"' >> ~/.zshrc && exec zsh`);
+                }
+            } else {
+                console.error('  could not detect npm global prefix; check `npm prefix -g` and add its bin dir to PATH.');
+            }
+            console.error('');
+            console.error('to skip the global install and use the slower self-updating npx command:');
+            console.error('  lean-statusline install --via npx');
+            return;
+        }
+        default: {
+            console.error(`unexpected install error: ${err.message || err}`);
+            if (err.stderr) console.error(err.stderr);
+        }
+    }
 }
 
 // ── help / flags ────────────────────────────────────────
@@ -526,11 +607,13 @@ function printHelp() {
 
 usage:
   lean-statusline                              render (stdin = Claude Code JSON)
-  lean-statusline install [opts]               install + patch settings.json (idempotent)
-                                               launches configure wizard afterward in a tty
+  lean-statusline install [opts]               npm install -g, patch settings.json, configure
+                                               (idempotent — safe to re-run)
     --no-wizard                                skip the wizard (scripted installs)
-    --via npx|global|node                      force runtime (default: auto-detect)
-    --no-patch                                 don't touch settings.json
+    --via global|npx|node                      runtime; default: global (runs npm install -g
+                                               and writes the fast direct binary). use npx for
+                                               the slower self-updating form, node for clones.
+    --no-patch                                 don't touch settings.json (also skips npm install -g)
     --dir PATH                                 override ~/.claude location
     --preset NAME                              apply preset (minimal|compact|full; classic → full)
   lean-statusline uninstall

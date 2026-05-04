@@ -42,13 +42,21 @@ lean-statusline install --preset full     # or: minimal | compact | full
 
 (`classic` is accepted as a legacy alias for `full`.)
 
-### no global install
+### bootstrap from npx
 
 ```bash
 npx -y lean-statusline@latest install
 ```
 
-same thing. if `npx` is the entry point, the patched command uses the self-updating `npx -y lean-statusline@latest` form so you never have to manually upgrade. ~700ms cold + ~100ms warm per render, vs ~50ms for the global bin.
+`install` runs `npm install -g lean-statusline` for you and writes the fast direct binary into `settings.json`. since 1.6.0 the per-render command is always `lean-statusline` (~50ms) — the slow `npx -y lean-statusline@latest` form (~700ms cold, ~100ms warm) is no longer auto-selected, because spawning npm on every render burned ~9× the CPU.
+
+if you specifically want the self-updating-but-slow npx form, opt in:
+
+```bash
+npx -y lean-statusline@latest install --via npx
+```
+
+if `npm install -g` fails (EACCES, missing npm, PATH not configured), `install` reports the exact failure with a copy-pasteable fix instead of silently downgrading to npx.
 
 ### from source
 
@@ -328,7 +336,7 @@ lean-statusline selfupdate --check  # report newer version, don't apply
 lean-statusline selfupdate --version 1.0.0   # pin to a specific version
 ```
 
-`selfupdate` wraps `npm install -g lean-statusline@<version>`. If you installed via `npx -y lean-statusline@latest` (and haven't also done `npm install -g`), updates happen automatically — npx re-resolves `@latest` against the registry on every invocation. The cost is ~700ms per render vs ~50ms for a global bin.
+`selfupdate` wraps `npm install -g lean-statusline@<version>`. The default `install` flow already performs a global install up-front, so most users will never need `selfupdate` directly — re-running `lean-statusline install` does the same thing and re-validates settings.json. If you specifically opted into `--via npx`, updates happen automatically since npx re-resolves `@latest` against the registry on every invocation (at the cost of ~700ms per render vs ~50ms for the global bin).
 
 If you see `EACCES` from npm on macOS/Linux, it means the global prefix isn't writable by your user — either re-run with `sudo`, or follow npm's [resolving-eacces-permissions-errors](https://docs.npmjs.com/resolving-eacces-permissions-errors-when-installing-packages-globally) guide.
 
