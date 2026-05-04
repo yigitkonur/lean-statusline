@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-05-04
+
+### Added
+- **`lean-statusline install` now actively runs `npm install -g lean-statusline`** before patching `~/.claude/settings.json`, then writes the fast direct binary (`lean-statusline`) as the statusline command. Measured impact: ~0.26s CPU per render vs ~2.31s with the npx form (~9× less CPU). The new helper is idempotent — if the global is already on PATH, no `npm install -g` runs.
+- **Typed install errors with targeted remediation.** `NPM_NOT_FOUND` (npm missing from PATH), `NPM_INSTALL_FAILED` (EACCES on macOS .pkg-installed node, etc.), and `BIN_NOT_ON_PATH` (install succeeded but PATH is missing the npm prefix bin dir) each surface a single specific message — no implicit fallback chains. Each message ends with the explicit `--via npx` opt-out so users always have a working escape hatch.
+- **`test/install.test.mjs`** — 16 unit tests covering the `pickCommand` priority flip and `ensureGlobalInstall` happy path + every error code, with `spawnSync` injected via the new `spawn` parameter so no actual `npm install -g` runs in CI.
+
+### Changed
+- **`pickCommand` / `pickSubagentCommand` auto-detect priority flipped.** Old order: npx-cache detection → PATH lookup → direct node. New order: PATH lookup → direct node. **`npx` is never auto-selected** — only the explicit `--via npx` flag produces the npx form.
+- **Default `--via` mode is now `global`.** When the flag is omitted, `install` ensures a global install before patching settings.json. Pass `--via npx` for the previous slow-but-self-updating behavior, or `--via node` for the absolute-path-to-clone form during development.
+- **`isRunningViaNpx` exported helper marked `@deprecated`** since the new auto-detect doesn't consult it. The function is retained for one release in case downstream consumers depend on it; safe to delete in 1.7.0. The empirical npm-env-var research the JSDoc captures is preserved in source.
+
+### Fixed
+- **`npx lean-statusline install` no longer persists the slow npx form into settings.json.** Previously, the npx-bin-path autodetect made the resulting command `npx -y lean-statusline@latest`, which costs ~9× more CPU per render than the direct binary. The same one-liner now does the right thing — installs globally, writes `lean-statusline`. Existing installs are unchanged until they re-run `install`.
+
 ## [1.5.4] — 2026-04-21
 
 ### Changed
@@ -295,7 +310,8 @@ First public release on npm.
 - SSH segment for remote-session indication.
 - `install` / `uninstall` / `config` / `doctor` / `version` subcommands.
 
-[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.4...HEAD
+[Unreleased]: https://github.com/yigitkonur/lean-statusline/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.5...v1.6.0
 [1.5.4]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.3...v1.5.4
 [1.5.3]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.2...v1.5.3
 [1.5.2]: https://github.com/yigitkonur/lean-statusline/compare/v1.5.1...v1.5.2
